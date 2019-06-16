@@ -35,9 +35,8 @@ def impl_decrypt(path, gpg, pswd):
         with open(metafile, 'r') as f:
             meta = json.load(f)
 
-    for key in meta:
-        file = meta[key]['file']
-        file_enc = os.path.join(enc_dir, key + '.gpg')
+    for file in meta:
+        file_enc = os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')
         # Create directory if not exists
         dir_path = os.path.dirname(os.path.abspath(file))
         if not os.path.exists(dir_path):
@@ -49,12 +48,12 @@ def impl_decrypt(path, gpg, pswd):
 
 def impl_encrypt(path, gpg, pswd):
     meta = {}
+
     for file in get_all_files(path):
-        meta[str(uuid.uuid4())] = {'file' : file}
+        meta[file] = {'uuid' : str(uuid.uuid4())}
     
-    for key in meta:
-        file = meta[key]['file']
-        file_enc = os.path.join(enc_dir, key + '.gpg')
+    for file in meta:
+        file_enc = os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')
         with open(file, 'rb') as f:
             gpg.encrypt_file(f, None, symmetric=True, passphrase=pswd, output=file_enc)
         gpg.encrypt(json.dumps(meta), None, symmetric=True, passphrase=pswd, output=metafile_enc)
