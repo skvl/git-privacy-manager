@@ -49,9 +49,14 @@ def impl_decrypt(path, gpg, pswd):
 def impl_encrypt(path, gpg, pswd):
     meta = {}
 
+    if os.path.exists(metafile):
+        with open(metafile, 'r') as f:
+            meta = json.load(f)
+
     for file in get_all_files(path):
-        meta[file] = {'uuid' : str(uuid.uuid4())}
-    
+        if file not in meta:
+            meta[file] = {'uuid' : str(uuid.uuid4())}
+
     for file in meta:
         file_enc = os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')
         with open(file, 'rb') as f:
