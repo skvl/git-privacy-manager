@@ -1,6 +1,7 @@
 import argparse
 import getpass
 import gnupg
+import hashlib
 import json
 import os
 import uuid
@@ -11,6 +12,14 @@ metafile = os.path.join(working_dir, 'metafile')
 
 enc_dir = os.path.join(working_dir, 'data')
 metafile_enc = os.path.join(enc_dir, 'meta.gpg')
+
+
+def md5(path):
+    hash_md5 = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
 
 def get_all_files(path):
@@ -35,8 +44,13 @@ def impl_decrypt(path, gpg, pswd):
         with open(metafile, 'r') as f:
             meta = json.load(f)
 
+    files_to_decrypt = []
     for file in meta:
-        file_enc = os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')
+        if not os.path.exists(file) or md5(file) != meta[file]['md5']:
+            files_to_decrypt.append((file, os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')))
+
+    for file, file_enc in files_to_decrypt:
+        print('[DEBUG] Decrypt new or modified file "%s" from "%s"' % (file, file_enc))
         # Create directory if not exists
         dir_path = os.path.dirname(os.path.abspath(file))
         if not os.path.exists(dir_path):
@@ -53,15 +67,30 @@ def impl_encrypt(path, gpg, pswd):
         with open(metafile, 'r') as f:
             meta = json.load(f)
 
-    for file in get_all_files(path):
-        if file not in meta:
-            meta[file] = {'uuid' : str(uuid.uuid4())}
+    files_to_encrypt = []
 
-    for file in meta:
-        file_enc = os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')
+    for file in get_all_files(path):
+        file_md5 = md5(file)
+        if file not in meta:
+            meta[file] = {'uuid' : str(uuid.uuid4()), 'md5' : file_md5}
+            files_to_encrypt.append((file, os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')))
+            print('[DEBUG] Commit new file "%s" as "%s"' % (file, meta[file]['uuid']))
+        elif meta[file]['md5'] != file_md5:
+            print('[DEBUG] Commit modified file "%s" as "%s": prev md5="%s", new md5="%s"' % (file, meta[file]['uuid'], meta[file]['md5'], file_md5))
+            meta[file]['md5'] = file_md5
+            files_to_encrypt.append((file, os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')))
+        else:
+            print('[DEBUG] Skip file "%s" (%s)' % (file, meta[file]['uuid']))
+
+    for file, file_enc in files_to_encrypt:
         with open(file, 'rb') as f:
             gpg.encrypt_file(f, None, symmetric=True, passphrase=pswd, output=file_enc)
-        gpg.encrypt(json.dumps(meta), None, symmetric=True, passphrase=pswd, output=metafile_enc)
+
+    if files_to_encrypt:
+        with open(metafile, 'w+') as f:
+            json.dump(meta, f)
+        with open(metafile, 'rb') as f:
+            gpg.encrypt_file(f, None, symmetric=True, passphrase=pswd, output=metafile_enc)
 
 
 def parse_args():
