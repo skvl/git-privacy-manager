@@ -40,6 +40,17 @@ class GPM:
         return fs
 
 
+    def _uuid(self, metadata):
+        while True:
+            file_uuid = str(uuid.uuid4())
+            for file_name, file_info in metadata.items():
+                if file_uuid not in file_info.values():
+                    return file_uuid
+                else:
+                    print(f'[DEBUG] UUID "{file_uuid}" is used for "{file_name}"')
+                    break
+
+
     def decrypt(self):
         if not os.path.exists(self.metafile_enc):
             print('No encrypted data')
@@ -96,7 +107,7 @@ class GPM:
         for file in all_files:
             file_md5 = self._md5(file)
             if file not in meta:
-                file_uuid = str(uuid.uuid4())
+                file_uuid = self._uuid(meta)
                 meta[file] = {'uuid' : file_uuid, 'md5' : file_md5}
                 metadata_changed = True
                 files_to_encrypt.append((file, os.path.join(self.enc_dir, meta[file]['uuid'] + '.gpg')))
