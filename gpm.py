@@ -50,7 +50,7 @@ def impl_decrypt(path, gpg, pswd):
             files_to_decrypt.append((file, os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')))
 
     for file, file_enc in files_to_decrypt:
-        print('[DEBUG] Decrypt new or modified file "%s" from "%s"' % (file, file_enc))
+        print(f'[DEBUG] Decrypt new or modified file "{file}" from "{file_enc}"')
         # Create directory if not exists
         dir_path = os.path.dirname(os.path.abspath(file))
         if not os.path.exists(dir_path):
@@ -61,32 +61,51 @@ def impl_decrypt(path, gpg, pswd):
 
 
 def impl_encrypt(path, gpg, pswd):
-    meta = {}
+    all_files = get_all_files(path)
 
+    metadata_changed = False
+    meta = {}
+    # Load metadata if present
     if os.path.exists(metafile):
         with open(metafile, 'r') as f:
             meta = json.load(f)
 
+        # Some files have been removed since last commit
+        # so remove them
+        deleted_files = set()
+        for file in meta:
+            if file not in all_files:
+                deleted_files.add(file)
+        for file in deleted_files:
+            print(f'[DEBUG] File "{file}" have been removed since last commit')
+            file_enc = os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')
+            if os.path.exists(file_enc):
+                os.remove(file_enc)
+            del meta[file]
+            metadata_changed = True
+
     files_to_encrypt = []
 
-    for file in get_all_files(path):
+    for file in all_files:
         file_md5 = md5(file)
         if file not in meta:
             meta[file] = {'uuid' : str(uuid.uuid4()), 'md5' : file_md5}
+            metadata_changed = True
             files_to_encrypt.append((file, os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')))
-            print('[DEBUG] Commit new file "%s" as "%s"' % (file, meta[file]['uuid']))
+            print(f'[DEBUG] Commit new file "{file}" as "%s"' % meta[file]['uuid'])
         elif meta[file]['md5'] != file_md5:
-            print('[DEBUG] Commit modified file "%s" as "%s": prev md5="%s", new md5="%s"' % (file, meta[file]['uuid'], meta[file]['md5'], file_md5))
             meta[file]['md5'] = file_md5
+            metadata_changed = True
             files_to_encrypt.append((file, os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')))
+            print(f'[DEBUG] Commit modified file "{file}" as "%s": prev md5="%s", new md5="{file_md5}"' % (meta[file]['uuid'], meta[file]['md5']))
         else:
-            print('[DEBUG] Skip file "%s" (%s)' % (file, meta[file]['uuid']))
+            print(f'[DEBUG] Skip file "{file}" (%s)' % meta[file]['uuid'])
 
     for file, file_enc in files_to_encrypt:
         with open(file, 'rb') as f:
             gpg.encrypt_file(f, None, symmetric=True, passphrase=pswd, output=file_enc)
 
-    if files_to_encrypt:
+    if metadata_changed:
         with open(metafile, 'w+') as f:
             json.dump(meta, f)
         with open(metafile, 'rb') as f:
@@ -97,7 +116,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Git Privacy Manager (GPM)')
 
     parser.add_argument('-p', '--path', dest='path', default=os.getcwd(),
-                        help='Path to working directory ("%s" by default)' % os.getcwd())
+                        help=f'Path to working directory ("{os.getcwd()}" by default)')
 
     subparsers = parser.add_subparsers()
 
