@@ -89,7 +89,8 @@ def impl_encrypt(path, gpg, pswd):
     for file in all_files:
         file_md5 = md5(file)
         if file not in meta:
-            meta[file] = {'uuid' : str(uuid.uuid4()), 'md5' : file_md5}
+            file_uuid = str(uuid.uuid4())
+            meta[file] = {'uuid' : file_uuid, 'md5' : file_md5}
             metadata_changed = True
             files_to_encrypt.append((file, os.path.join(enc_dir, meta[file]['uuid'] + '.gpg')))
             print(f'[DEBUG] Commit new file "{file}" as "%s"' % meta[file]['uuid'])
@@ -129,7 +130,7 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+def main():
     args = parse_args()
 
     # Go to working directory
