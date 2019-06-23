@@ -5,6 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="git-privacy-manager",
+    # Follows semver 2.0
     version="0.0.0",
     author="Sergey Kovalev",
     author_email="valor@list.ru",
@@ -12,6 +13,10 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/skvl/git-privacy-manager",
+    project_urls = {
+        'Source' : 'https://github.com/skvl/git-privacy-manager',
+        'Tracker': 'https://github.com/skvl/git-privacy-manager/issues'
+    },
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -22,4 +27,6 @@ setuptools.setup(
         "Natural Language :: English",
         "Topic :: Communications :: File Sharing",
     ],
+    python_requires='~=3.7.3',
+    install_requires = [ 'python-gnupg >= 0.4.4, < 0.5.0' ],
 )
