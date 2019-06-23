@@ -1,4 +1,4 @@
 name = 'git_privacy_manager'
 __all__ = ['gpm']
 
-from .gpm import main
+from .gpm import GPM
