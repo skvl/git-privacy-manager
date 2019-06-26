@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "5b34c231197736629771c95f5aa187c0c4e4468e5668ba59c7c37502efe0109e"
+            "sha256": "60e0cd0b062735db2de5ba45949978b22663a471e25ea93151f8d4868165cbea"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -16,6 +16,10 @@
         ]
     },
     "default": {
+        "git-privacy-manager": {
+            "editable": true,
+            "path": "."
+        },
         "python-gnupg": {
             "hashes": [
                 "sha256:45daf020b370bda13a1429c859fcdff0b766c0576844211446f9266cae97fb0e",
