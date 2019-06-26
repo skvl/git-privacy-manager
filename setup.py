@@ -32,4 +32,5 @@ setuptools.setup(
     entry_points = {
         'console_scripts': ['gpm=git_privacy_manager.command_line:main'],
     },
+    test_suite = 'git_privacy_manager.tests',
 )
