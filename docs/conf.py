@@ -18,15 +18,19 @@ from datetime import date
 file_loc = os.path.split(__file__)[0]
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(file_loc), '.')))
 
-import git_privacy_manager as gpm
-
 # -- Project information -----------------------------------------------------
 
-project = gpm.__project__
-author = gpm.__author__
+gpm = dict()
+with open('../git_privacy_manager/__about__.py', 'r') as f:
+    for l in f.readlines():
+        v = l.split(' = ') 
+        gpm[v[0]] = v[1]        
+
+project = gpm['__project__']
+author = gpm['__author__']
 copyright = u'Copyright 2016 - {0} {1}'.format(date.today().year, author)
 
-version = gpm.__version__
+version = gpm['__version__']
 # The full version, including alpha/beta/rc tags
 release = version
 
@@ -59,6 +63,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # a list of builtin themes.
 #
 html_theme = 'sphinx_rtd_theme'
+master_doc = 'index' # Fix for Sphinx < 2 (for "Read the Docs")
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -67,6 +72,10 @@ html_static_path = ['_static']
 
 
 # -- Extension configuration -------------------------------------------------
+
+# -- Options for autodoc extension -------------------------------------------
+
+autodoc_mock_imports = [ "gnupg" ]
 
 # -- Options for todo extension ----------------------------------------------
 

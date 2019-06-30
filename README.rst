@@ -1,6 +1,8 @@
 Git Privacy Manager: GPM
 ========================
 
+.. image:: https://readthedocs.org/projects/git-privacy-manager/badge/?version=latest :target: https://git-privacy-manager.readthedocs.io/en/latest/?badge=latest :alt: Documentation Status
+
 GPM lets you to store sensitive information in open repositories like GitHub.
 
 Futures
