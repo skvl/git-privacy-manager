@@ -1,3 +1,11 @@
+"""
+Test Git Privacy Manager against CRUD ([1]_) operations.
+
+References
+----------
+
+.. [1] https://en.wikipedia.org/wiki/Create,_read,_update_and_delete
+"""
 import git_privacy_manager as gpm
 import os
 import tempfile
@@ -17,8 +25,7 @@ def add_file(working_directory):
 
 class TestSingleFileCRUD(unittest.TestCase):
     """
-    Test [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete)
-    operations against single file.
+    Test CRUD operations against single file.
     """
 
     def setUp(self):
@@ -62,8 +69,7 @@ class TestSingleFileCRUD(unittest.TestCase):
 
 class TestMultipleFilesCRUD(unittest.TestCase):
     """
-    Test [CRUD](https://en.wikipedia.org/wiki/Create,_read,_update_and_delete)
-    operations against a pair of files.
+    Test CRUD operations against a pair of files.
     """
 
     def setUp(self):

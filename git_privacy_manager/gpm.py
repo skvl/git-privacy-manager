@@ -7,7 +7,31 @@ import uuid
 
 
 class GPM:
+    """
+    Implements minimal API for encrypt or decrypt files.
+
+    Encrypts arbitrary nested files in working directory with GnuPG.
+    Resulting blobs with random names are stored in single output
+    directory. The relationship between actual files and blobs is
+    stored in database.
+    """
+
     def __init__(self, path, pswd):
+        """
+        Parameters
+        ----------
+
+        path : str
+            Path to working directory with files to encrypt
+        pswd : str
+            Password for symmetric encryption
+
+        Notes
+        -----
+
+        The *.gpm* folder will be created to store metadata.
+        The *.gpm/data* folder will be created to store encrypted blobs.
+        """
         self.gpg = gnupg.GPG()
         self.pswd = pswd
 
@@ -22,6 +46,19 @@ class GPM:
             os.makedirs(self.enc_dir)
 
     def _md5(self, file):
+        """
+        Calculate the MD5 checksum of a file
+
+        Parameters
+        ----------
+        file : str
+            Path to file.
+
+        Returns
+        -------
+        str
+            MD5 checksum of a file.
+        """
         hash_md5 = hashlib.md5()
         with open(file, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
@@ -29,6 +66,16 @@ class GPM:
         return hash_md5.hexdigest()
 
     def _get_all_files(self):
+        """
+        Get list of files in all subfolders in working directory
+
+        The names contain paths relative to working direcotry.
+
+        Returns
+        -------
+        set
+            A list of files in working directory and subdirectories.
+        """
         fs = set()
         for root, _, files in os.walk(self.working_dir):
             for file in files:
@@ -39,6 +86,21 @@ class GPM:
         return fs
 
     def _uuid(self, metadata):
+        """
+        Generate UUID for a file.
+
+        Generated UUID is checked for collision in database.
+
+        Parameters
+        ----------
+        metadata : dict
+            A dictionary with database.
+
+        Raises
+        ------
+        RuntimeError
+            If fails to generate UUID in 10 times.
+        """
         for _ in range(10):
             file_uuid = str(uuid.uuid4())
             if not metadata:
@@ -57,6 +119,13 @@ class GPM:
         raise RuntimeError('Failed to generate UUID')
 
     def decrypt(self):
+        """
+        Decrypt blobs from data directory into working directory.
+
+        Warnings
+        --------
+        The files from working directory are not removed!
+        """
         if not os.path.exists(self.metafile_enc):
             logging.info('No encrypted data')
             return
@@ -86,6 +155,9 @@ class GPM:
                 self.gpg.decrypt_file(fe, passphrase=self.pswd, output=file)
 
     def encrypt(self):
+        """
+        Encrypts files from working directory into data directory.
+        """
         all_files = self._get_all_files()
 
         metadata_changed = False

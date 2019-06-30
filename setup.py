@@ -1,13 +1,16 @@
 import setuptools
 
-with open("README.md", "r") as fh:
+about = {}
+with open("git_privacy_manager/__about__.py") as f:
+    exec(f.read(), about)
+
+with open("README.rst", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="git-privacy-manager",
-    # Follows semver 2.0
-    version="0.0.0",
-    author="Sergey Kovalev",
+    name=about['__version__'],
+    version=about['__version__'],
+    author=about['__author__'],
     author_email="valor@list.ru",
     description="Store sensitive data in open repositories",
     long_description=long_description,
@@ -33,4 +36,10 @@ setuptools.setup(
         'console_scripts': ['gpm=git_privacy_manager.command_line:main'],
     },
     test_suite = 'git_privacy_manager.tests',
+    command_options={
+        'build_sphinx': {
+            'build_dir': ('setup.py', 'docs/_build'),
+            'source_dir': ('setup.py', 'docs'),
+        },
+    },
 )
