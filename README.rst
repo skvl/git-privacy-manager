@@ -1,7 +1,7 @@
 Git Privacy Manager: GPM
 ========================
 
-.. image:: https://readthedocs.org/projects/git-privacy-manager/badge/?version=latest :target: https://git-privacy-manager.readthedocs.io/en/latest/?badge=latest :alt: Documentation Status
+|docs|
 
 GPM lets you to store sensitive information in open repositories like GitHub.
 
@@ -48,3 +48,8 @@ Decrypt current directory
 .. code-block:: bash
 
     gpm decrypt
+
+.. |docs| image:: https://readthedocs.org/projects/git-privacy-manager/badge/?version=latest
+    :alt: Documentation Status
+    :scale: 100%
+    :target: https://git-privacy-manager.readthedocs.io/en/latest/?badge=latest
