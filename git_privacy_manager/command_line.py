@@ -2,6 +2,7 @@ import argparse
 import getpass
 import git_privacy_manager
 import os
+import sys
 
 
 def impl_decrypt(gpm):
@@ -25,6 +26,10 @@ def parse_args():
 
     decrypt = subparsers.add_parser('decrypt', help='Decrypt all files')
     decrypt.set_defaults(function=impl_decrypt)
+
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
 
     return parser.parse_args()
 
