@@ -3,8 +3,12 @@ import hashlib
 import json
 import logging
 import os
+from pathlib import Path
+from typing import Dict, List, Set
 import uuid
 
+
+DataBase = Dict[Path, Dict[str, str]]
 
 class GPM:
     """
@@ -16,7 +20,7 @@ class GPM:
     stored in database.
     """
 
-    def __init__(self, path, pswd):
+    def __init__(self, path : Path, pswd : str):
         """
         Parameters
         ----------
@@ -45,7 +49,7 @@ class GPM:
         if not os.path.exists(self.enc_dir):
             os.makedirs(self.enc_dir)
 
-    def _md5(self, file):
+    def _md5(self, file : Path) -> str:
         """
         Calculate the MD5 checksum of a file
 
@@ -65,7 +69,7 @@ class GPM:
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
 
-    def _get_all_files(self):
+    def _get_all_files(self) -> Set[str]:
         """
         Get list of files in all subfolders in working directory
 
@@ -85,7 +89,7 @@ class GPM:
                     fs.add(rel_file)
         return fs
 
-    def _uuid(self, metadata):
+    def _uuid(self, metadata : DataBase) -> str:
         """
         Generate UUID for a file.
 

@@ -10,6 +10,7 @@ python-gnupg = "~=0.4.4"
 git-privacy-manager = {editable = true,path = "."}
 sphinx-rtd-theme = "*"
 sphinx = "*"
+mypy = "*"
 
 [requires]
 python_version = "3.7"
