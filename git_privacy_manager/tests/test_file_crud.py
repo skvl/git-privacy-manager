@@ -8,6 +8,7 @@ References
 """
 import git_privacy_manager as gpm
 import os
+from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -31,7 +32,7 @@ class TestSingleFileCRUD(unittest.TestCase):
     def setUp(self):
         self.working_directory = tempfile.mkdtemp()
         self.pswd = '123'
-        self.gpm = gpm.GPM(self.working_directory, self.pswd)
+        self.gpm = gpm.GPM(Path(self.working_directory), self.pswd)
 
         self.file_path, self.file_data = add_file(self.working_directory)
         self.gpm.encrypt()
@@ -75,7 +76,7 @@ class TestMultipleFilesCRUD(unittest.TestCase):
     def setUp(self):
         self.working_directory = tempfile.mkdtemp()
         self.pswd = '123'
-        self.gpm = gpm.GPM(self.working_directory, self.pswd)
+        self.gpm = gpm.GPM(Path(self.working_directory), self.pswd)
 
         self.file_1_path, self.file_1_data = add_file(self.working_directory)
         self.file_2_path, self.file_2_data = add_file(self.working_directory)
