@@ -16,12 +16,6 @@ matrix:
     script:
         - python setup.py test
 
-  # A workaround for Travis CI. Remove later.
-  - env:
-    - TEST="typing"
-    script:
-      - mypy git_privacy_manager
-
   - env:
     - TEST="SonarCloud"
     addons:
@@ -29,8 +23,14 @@ matrix:
         organization: "skvl-github"
         token:
           secure: "$SONAR_TOKEN"
+    install:
+      - pip install pipenv
+      - pipenv install -d -v
+      - pip install codecov
     script:
-      - sonar-scanner
+      - coverage run ./setup.py test
+      - coverage xml -i -o coverage.xml
+      - sonar-scanner -Dsonar.python.coverage.reportPath=./coverage.xml
 
   - env:
     - TEST="codecov"
