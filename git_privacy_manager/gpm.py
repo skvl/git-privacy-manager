@@ -3,8 +3,8 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Set
-import uuid
+from typing import Dict, List, Set
+from uuid import uuid4
 
 
 DataBase = Dict[Path, Dict[str, str]]
@@ -47,79 +47,6 @@ class GPM:
 
         self.enc_dir.mkdir(exist_ok=True, parents=True)
 
-    def _md5(self, file: Path) -> str:
-        """
-        Calculate the MD5 checksum of a file
-
-        Parameters
-        ----------
-        file : str
-            Path to file.
-
-        Returns
-        -------
-        str
-            MD5 checksum of a file.
-        """
-        hash_md5 = hashlib.md5()
-        with open(file, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()
-
-    def _get_all_files(self) -> Set[Path]:
-        """
-        Get list of files in all subfolders in working directory
-
-        The names contain paths relative to working direcotry.
-
-        Returns
-        -------
-        set
-            A list of files in working directory and subdirectories.
-        """
-        fs = set()
-        for entry in self.working_dir.rglob('*'):
-            if entry.is_file() and str(self.gpm_dir) not in str(entry):
-                fs.add(entry)
-        return fs
-
-    def _uuid(self, metadata: DataBase) -> str:
-        """
-        Generate UUID for a file.
-
-        Generated UUID is checked for collision in database.
-
-        Parameters
-        ----------
-        metadata : dict
-            A dictionary with database.
-
-        Raises
-        ------
-        RuntimeError
-            If fails to generate UUID in 10 times.
-        """
-        for _ in range(10):
-            file_uuid = str(uuid.uuid4())
-            if not metadata:
-                logging.debug(f'Get UUID: {file_uuid}')
-                return file_uuid
-            no_collisions = True
-            for file_name, file_info in metadata.items():
-                if file_uuid != file_info['uuid']:
-                    continue
-                else:
-                    logging.debug(
-                        f'UUID "{file_uuid}" is used for "{file_name}"')
-                    no_collisions = False
-                    break
-            if no_collisions:
-                logging.debug(f'Get UUID: {file_uuid}')
-                return file_uuid
-        logging.debug('[CRITICAL] Failed to generate UUID')
-        raise RuntimeError('Failed to generate UUID')
-
     def decrypt(self):
         """
         Decrypt blobs from data directory into working directory.
@@ -142,7 +69,7 @@ class GPM:
         files_to_decrypt = []
         for relative_file in meta:
             file = self.working_dir / relative_file
-            if not file.is_file() or self._md5(file) != meta[relative_file]['hash']:
+            if not file.is_file() or checksum(file) != meta[relative_file]['checksum']:
                 file_enc = (self.enc_dir /
                             meta[relative_file]['uuid']).with_suffix('.gpg')
                 files_to_decrypt.append((file, file_enc))
@@ -161,7 +88,7 @@ class GPM:
         """
         Encrypts files from working directory into data directory.
         """
-        all_files = self._get_all_files()
+        all_files = get_all_files(self.working_dir, [self.gpm_dir])
 
         metadata_changed = False
         meta = {}
@@ -195,26 +122,26 @@ class GPM:
 
         for abs_file in all_files:
             file = str(abs_file.relative_to(self.working_dir))
-            file_md5 = self._md5(abs_file)
+            file_checksum = checksum(abs_file)
             if file not in meta:
                 logging.debug(
                     f'Generate UUID for file: {abs_file} . Metadata: {meta}')
-                file_uuid = self._uuid(meta)
-                meta[file] = {'uuid': file_uuid, 'hash': file_md5}
+                file_uuid = uuid(meta)
+                meta[file] = {'uuid': file_uuid, 'checksum': file_checksum}
                 metadata_changed = True
                 file_enc = str((self.enc_dir /
                                 meta[file]['uuid']).with_suffix('.gpg'))
                 files_to_encrypt.append((abs_file, file_enc))
                 logging.info(
                     f'Commit new file "{file}" as "%s"' % meta[file]['uuid'])
-            elif meta[file]['hash'] != file_md5:
-                meta[file]['hash'] = file_md5
+            elif meta[file]['checksum'] != file_checksum:
+                meta[file]['checksum'] = file_checksum
                 metadata_changed = True
                 file_enc = str((self.enc_dir /
                                 meta[file]['uuid']).with_suffix('.gpg'))
                 files_to_encrypt.append((abs_file, file_enc))
-                logging.info(f'Commit modified file "{file}" as "%s": prev md5="%s", new md5="{file_md5}"' % (
-                    meta[file]['uuid'], meta[file]['hash']))
+                logging.info(f'Commit modified file "{file}" as "%s": prev checksum="%s", new checksum="{file_checksum}"' % (
+                    meta[file]['uuid'], meta[file]['checksum']))
             else:
                 logging.info(
                     f'Skip file "{file}" (%s)' % meta[file]['uuid'])
@@ -232,3 +159,83 @@ class GPM:
             with open(self.metafile, 'rb') as f:
                 self.gpg.encrypt_file(
                     f, None, symmetric=True, passphrase=self.pswd, output=str(self.metafile_enc))
+
+
+def checksum(file: Path) -> str:
+    """
+    Calculate the MD5 checksum of a file
+
+    Parameters
+    ----------
+    file : str
+        Path to file.
+
+    Returns
+    -------
+    str
+        MD5 checksum of a file.
+    """
+    hash_md5 = hashlib.md5()
+    with open(file, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+
+def get_all_files(working_dir: Path, exclude: List[Path] = []) -> Set[Path]:
+    """
+    Get list of files in all subfolders in working directory
+
+    The names contain paths relative to working direcotry.
+
+    Returns
+    -------
+    set
+        A list of files in working directory and subdirectories.
+    """
+    def excluded(entry: Path):
+        for path in exclude:
+            return path == entry or path in entry.parents
+
+    fs = set()
+    for entry in working_dir.rglob('*'):
+        if entry.is_file() and not excluded(entry):
+            fs.add(entry)
+    return fs
+
+
+def uuid(metadata: DataBase) -> str:
+    """
+    Generate UUID for a file.
+
+    Generated UUID is checked for collision in database.
+
+    Parameters
+    ----------
+    metadata : dict
+        A dictionary with database.
+
+    Raises
+    ------
+    RuntimeError
+        If fails to generate UUID in 10 times.
+    """
+    for _ in range(10):
+        file_uuid = str(uuid4())
+        if not metadata:
+            logging.debug(f'Get UUID: {file_uuid}')
+            return file_uuid
+        no_collisions = True
+        for file_name, file_info in metadata.items():
+            if file_uuid != file_info['uuid']:
+                continue
+            else:
+                logging.debug(
+                    f'UUID "{file_uuid}" is used for "{file_name}"')
+                no_collisions = False
+                break
+        if no_collisions:
+            logging.debug(f'Get UUID: {file_uuid}')
+            return file_uuid
+    logging.debug('[CRITICAL] Failed to generate UUID')
+    raise RuntimeError('Failed to generate UUID')

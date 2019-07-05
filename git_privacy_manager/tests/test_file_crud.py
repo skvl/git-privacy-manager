@@ -146,17 +146,17 @@ class TestMultipleFilesCRUD(unittest.TestCase):
         with open(self.file_2_path, 'r') as f:
             self.assertEqual(self.file_2_data, f.read())
 
-    @patch('git_privacy_manager.gpm.uuid')
+    @patch('git_privacy_manager.gpm.uuid4')
     def test_uuid_collision_raises(self, mock_uuid):
-        mock_uuid.uuid4.return_value = 1
+        mock_uuid.return_value = 1
         add_file(self.working_directory)
         add_file(self.working_directory)
         with self.assertRaises(RuntimeError):
             self.gpm.encrypt()
 
-    @patch('git_privacy_manager.gpm.uuid')
+    @patch('git_privacy_manager.gpm.uuid4')
     def test_uuid_collision_success(self, mock_uuid):
-        mock_uuid.uuid4.side_effect = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
+        mock_uuid.side_effect = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]
         add_file(self.working_directory)
         add_file(self.working_directory)
         self.gpm.encrypt()
