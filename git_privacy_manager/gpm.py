@@ -36,16 +36,16 @@ class GPM:
         The *.gpm* folder will be created to store metadata.
         The *.gpm/data* folder will be created to store encrypted blobs.
         """
-        self.gpg = gnupg.GPG()
-        self.pswd = pswd
+        self.__gpg = gnupg.GPG()
+        self.__pswd = pswd
 
-        self.working_dir = path
-        self.gpm_dir = self.working_dir / '.gpm'
-        self.metafile = self.gpm_dir / 'metafile'
-        self.enc_dir = self.gpm_dir / 'data'
-        self.metafile_enc = self.enc_dir / 'meta.gpg'
+        self.__working_dir = path
+        self.__metadata_dir = self.__working_dir / '.gpm'
+        self.__metafile = self.__metadata_dir / 'metafile'
+        self.__output_dir = self.__metadata_dir / 'data'
+        self.__encrypted_metafile = self.__output_dir / 'meta.gpg'
 
-        self.enc_dir.mkdir(exist_ok=True, parents=True)
+        self.__output_dir.mkdir(exist_ok=True, parents=True)
 
     def decrypt(self):
         """
@@ -55,22 +55,22 @@ class GPM:
         --------
         The files from working directory are not removed!
         """
-        if not self.metafile_enc.is_file():
+        if not self.__encrypted_metafile.is_file():
             logging.info('No encrypted data')
             return
 
         meta = {}
-        with open(self.metafile_enc, 'rb') as fe:
-            self.gpg.decrypt_file(
-                fe, passphrase=self.pswd, output=str(self.metafile))
-            with open(self.metafile, 'r') as f:
+        with open(self.__encrypted_metafile, 'rb') as fe:
+            self.__gpg.decrypt_file(
+                fe, passphrase=self.__pswd, output=str(self.__metafile))
+            with open(self.__metafile, 'r') as f:
                 meta = json.load(f)
 
         files_to_decrypt = []
         for relative_file in meta:
-            file = self.working_dir / relative_file
+            file = self.__working_dir / relative_file
             if not file.is_file() or checksum(file) != meta[relative_file]['checksum']:
-                file_enc = (self.enc_dir /
+                file_enc = (self.__output_dir /
                             meta[relative_file]['uuid']).with_suffix('.gpg')
                 files_to_decrypt.append((file, file_enc))
 
@@ -81,29 +81,29 @@ class GPM:
             file.parent.mkdir(exist_ok=True)
             # Decrypt file
             with open(file_enc, 'rb') as fe:
-                self.gpg.decrypt_file(
-                    fe, passphrase=self.pswd, output=str(file))
+                self.__gpg.decrypt_file(
+                    fe, passphrase=self.__pswd, output=str(file))
 
     def encrypt(self):
         """
         Encrypts files from working directory into data directory.
         """
-        all_files = get_all_files(self.working_dir, [self.gpm_dir])
+        all_files = get_all_files(self.__working_dir, [self.__metadata_dir])
 
         metadata_changed = False
         meta = {}
         # Load metadata if present
-        if self.metafile.is_file():
-            with open(self.metafile, 'r') as f:
+        if self.__metafile.is_file():
+            with open(self.__metafile, 'r') as f:
                 meta = json.load(f)
                 logging.debug(
-                    f'Read metadata from {self.metafile}: f{meta}')
+                    f'Read metadata from {self.__metafile}: f{meta}')
 
             # Some files have been removed since last commit
             # so remove them
             deleted_files = set()
             for relative_file in meta:
-                abs_file = self.working_dir / relative_file
+                abs_file = self.__working_dir / relative_file
                 if abs_file not in all_files:
                     logging.debug(
                         f'Delete file {relative_file}. All files: {all_files}. Metadata: {meta}')
@@ -111,7 +111,7 @@ class GPM:
             for file in deleted_files:
                 logging.info(
                     f'File "{file}" have been removed since last commit')
-                file_enc = (self.enc_dir /
+                file_enc = (self.__output_dir /
                             meta[file]['uuid']).with_suffix('.gpg')
                 if file_enc.is_file():
                     file_enc.unlink()
@@ -121,7 +121,7 @@ class GPM:
         files_to_encrypt = []
 
         for abs_file in all_files:
-            file = str(abs_file.relative_to(self.working_dir))
+            file = str(abs_file.relative_to(self.__working_dir))
             file_checksum = checksum(abs_file)
             if file not in meta:
                 logging.debug(
@@ -129,7 +129,7 @@ class GPM:
                 file_uuid = uuid(meta)
                 meta[file] = {'uuid': file_uuid, 'checksum': file_checksum}
                 metadata_changed = True
-                file_enc = str((self.enc_dir /
+                file_enc = str((self.__output_dir /
                                 meta[file]['uuid']).with_suffix('.gpg'))
                 files_to_encrypt.append((abs_file, file_enc))
                 logging.info(
@@ -137,7 +137,7 @@ class GPM:
             elif meta[file]['checksum'] != file_checksum:
                 meta[file]['checksum'] = file_checksum
                 metadata_changed = True
-                file_enc = str((self.enc_dir /
+                file_enc = str((self.__output_dir /
                                 meta[file]['uuid']).with_suffix('.gpg'))
                 files_to_encrypt.append((abs_file, file_enc))
                 logging.info(f'Commit modified file "{file}" as "%s": prev checksum="%s", new checksum="{file_checksum}"' % (
@@ -148,17 +148,17 @@ class GPM:
 
         for file, file_enc in files_to_encrypt:
             with open(file, 'rb') as f:
-                self.gpg.encrypt_file(
-                    f, None, symmetric=True, passphrase=self.pswd, output=file_enc)
+                self.__gpg.encrypt_file(
+                    f, None, symmetric=True, passphrase=self.__pswd, output=file_enc)
 
         if metadata_changed:
-            with open(self.metafile, 'w+') as f:
+            with open(self.__metafile, 'w+') as f:
                 json.dump(meta, f)
                 logging.debug(
-                    f'Write metadata to {self.metafile}: f{meta}')
-            with open(self.metafile, 'rb') as f:
-                self.gpg.encrypt_file(
-                    f, None, symmetric=True, passphrase=self.pswd, output=str(self.metafile_enc))
+                    f'Write metadata to {self.__metafile}: f{meta}')
+            with open(self.__metafile, 'rb') as f:
+                self.__gpg.encrypt_file(
+                    f, None, symmetric=True, passphrase=self.__pswd, output=str(self.__encrypted_metafile))
 
 
 def checksum(file: Path) -> str:
