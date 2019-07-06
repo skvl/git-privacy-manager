@@ -13,20 +13,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import uuid  # Used to generate random string
-
-
-def add_file(working_directory):
-    file_data = str(uuid.uuid4())
-    file_handle, file_path = tempfile.mkstemp(dir=working_directory, text=True)
-    with open(file_handle, 'w') as f:
-        f.write(file_data)
-
-    return file_path, file_data
-
-
-def files_in_directory(path: Path):
-    all_files = path.rglob('*')
-    return len([f for f in all_files if f.is_file()])
+from .utils import add_file, files_in_directory
 
 
 class TestCustomOutputDir(unittest.TestCase):

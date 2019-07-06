@@ -68,9 +68,6 @@ class GPM:
         RuntimeError
             If no metafile encrypted blob found.
         """
-        if not self._encrypted_metafile.is_file():
-            raise RuntimeError('Malformed output directory: no metafile encrypted blob found.')
-
         self._read_metadata_blob()
 
         files_to_decrypt = []
@@ -84,7 +81,8 @@ class GPM:
         for file, file_enc in files_to_decrypt:
             self._decrypt_file(file_enc, file)
 
-        self._sync_files_with_metadata()
+        self._remove_remains_in_working_dir()
+        self._remove_ramains_in_output_dir()
 
     def encrypt(self):
         """
@@ -95,7 +93,7 @@ class GPM:
         RuntimeError
             If fails to generate UUID for a file.
         """
-        self._sync_files_with_metadata()
+        self._remove_ramains_in_output_dir()
 
         files_to_encrypt = []
         for file in self._all_files:
@@ -116,9 +114,6 @@ class GPM:
         self._write_metadata_blob()
 
     def _read_metadata(self):
-        self._all_files = get_all_files(
-            self._working_dir, [self._metadata_dir])
-
         # Load metadata if present
         if self._metafile.is_file():
             with open(self._metafile, 'r') as f:
@@ -135,6 +130,8 @@ class GPM:
             self._metadata_dirty = False
 
     def _read_metadata_blob(self):
+        if not self._encrypted_metafile.is_file():
+            raise RuntimeError('Malformed output directory: no metafile encrypted blob found.')
         with open(self._encrypted_metafile, 'rb') as fe:
             self._gpg.decrypt_file(
                 fe, passphrase=self._pswd, output=str(self._metafile))
@@ -146,7 +143,9 @@ class GPM:
             self._gpg.encrypt_file(
                 f, None, symmetric=True, passphrase=self._pswd, output=str(self._encrypted_metafile))
 
-    def _sync_files_with_metadata(self):
+    def _remove_ramains_in_output_dir(self):
+        self._all_files = get_all_files(
+            self._working_dir, [self._metadata_dir])
         self._read_metadata()
         # Some files have been removed since last commit
         # so remove them
@@ -170,6 +169,18 @@ class GPM:
             self._metadata_dirty = True
 
         self._write_metadata()
+
+    def _remove_remains_in_working_dir(self):
+        self._all_files = get_all_files(
+            self._working_dir, [self._metadata_dir])
+
+        for file in self._all_files:
+            key = self._key(file)
+            if key not in self._metadata:
+                file.unlink()
+
+        self._all_files = get_all_files(
+            self._working_dir, [self._metadata_dir])
 
     def _decrypt_file(self, src: Path, dst: Path):
         logging.info(
