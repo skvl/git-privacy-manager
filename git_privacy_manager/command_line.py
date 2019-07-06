@@ -19,6 +19,8 @@ def parse_args():
 
     parser.add_argument('-p', '--path', dest='path', default=os.getcwd(),
                         help=f'Path to working directory (current directory by default)')
+    parser.add_argument('-o', '--output', dest='output', default=None,
+                        help='Path to output directory')
 
     subparsers = parser.add_subparsers()
 
@@ -40,4 +42,5 @@ def main():
     pswd = getpass.getpass(prompt='Password: ')
 
     # Apply command
-    args.function(git_privacy_manager.GPM(Path(args.path), pswd))
+    args.function(git_privacy_manager.GPM(
+        Path(args.path), pswd, Path(args.output)))
