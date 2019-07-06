@@ -36,20 +36,20 @@ class GPM:
         The *.gpm* folder will be created to store metadata.
         The *.gpm/data* folder will be created to store encrypted blobs.
         """
-        self.__gpg = gnupg.GPG()
-        self.__pswd = pswd
+        self._gpg = gnupg.GPG()
+        self._pswd = pswd
 
-        self.__working_dir = path
-        self.__metadata_dir = self.__working_dir / '.gpm'
-        self.__metafile = self.__metadata_dir / 'metafile'
-        self.__output_dir = self.__metadata_dir / 'data'
-        self.__encrypted_metafile = self.__output_dir / 'meta.gpg'
+        self._working_dir = path
+        self._metadata_dir = self._working_dir / '.gpm'
+        self._metafile = self._metadata_dir / 'metafile'
+        self._output_dir = self._metadata_dir / 'data'
+        self._encrypted_metafile = self._output_dir / 'meta.gpg'
 
-        self.__output_dir.mkdir(exist_ok=True, parents=True)
+        self._output_dir.mkdir(exist_ok=True, parents=True)
 
-        self.__all_files: List[Path] = []
-        self.__metadata: DataBase = {}
-        self.__metadata_dirty = False
+        self._all_files: List[Path] = []
+        self._metadata: DataBase = {}
+        self._metadata_dirty = False
 
     def decrypt(self):
         """
@@ -59,149 +59,186 @@ class GPM:
         --------
         The files from working directory are not removed!
         """
-        if not self.__encrypted_metafile.is_file():
+        if not self._encrypted_metafile.is_file():
             logging.info('No encrypted data')
             return
 
-        self.__read_metadata_blob()
+        self._read_metadata_blob()
 
         files_to_decrypt = []
-        for relative_file in self.__metadata:
-            file = self.__working_dir / relative_file
-            if not file.is_file() or checksum(file) != self.__metadata[relative_file]['checksum']:
-                file_enc = (self.__output_dir /
-                            self.__metadata[relative_file]['uuid']).with_suffix('.gpg')
+        for relative_file in self._metadata:
+            file = self._working_dir / relative_file
+            if not file.is_file() or checksum(file) != self._metadata[relative_file]['checksum']:
+                file_enc = (self._output_dir /
+                            self._metadata[relative_file]['uuid']).with_suffix('.gpg')
                 files_to_decrypt.append((file, file_enc))
 
         for file, file_enc in files_to_decrypt:
-            self.__decrypt_file(file_enc, file)
+            self._decrypt_file(file_enc, file)
 
-        self.__sync_files_with_metadata()
+        self._sync_files_with_metadata()
 
     def encrypt(self):
         """
         Encrypts files from working directory into data directory.
         """
-        self.__sync_files_with_metadata()
+        self._sync_files_with_metadata()
 
         files_to_encrypt = []
-        for file in self.__all_files:
-            key = self.__key(file)
+        for file in self._all_files:
+            key = self._key(file)
             file_checksum = checksum(file)
-            if not self.__contains(file):
-                files_to_encrypt.append(self.__add(file, file_checksum=file_checksum))
-            elif self.__differ(file, file_checksum):
-                files_to_encrypt.append(self.__update_checksum(file, file_checksum))
+            if not self._contains(file):
+                files_to_encrypt.append(self._add(file, file_checksum=file_checksum))
+            elif self._differ(file, file_checksum):
+                files_to_encrypt.append(self._update_checksum(file, file_checksum))
             else:
                 logging.info(
-                    f'Skip file "{key}" (%s)' % self.__metadata[key]['uuid'])
+                    f'Skip file "{key}" (%s)' % self._metadata[key]['uuid'])
 
         for file, file_enc in files_to_encrypt:
-            self.__encrypt_file(file, file_enc)
+            self._encrypt_file(file, file_enc)
 
-        self.__write_metadata()
-        self.__write_metadata_blob()
+        self._write_metadata()
+        self._write_metadata_blob()
 
-    def __read_metadata(self):
-        self.__all_files = get_all_files(
-            self.__working_dir, [self.__metadata_dir])
+    def _read_metadata(self):
+        self._all_files = get_all_files(
+            self._working_dir, [self._metadata_dir])
 
         # Load metadata if present
-        if self.__metafile.is_file():
-            with open(self.__metafile, 'r') as f:
-                self.__metadata = json.load(f)
+        if self._metafile.is_file():
+            with open(self._metafile, 'r') as f:
+                self._metadata = json.load(f)
                 logging.debug(
-                    f'Read metadata from {self.__metafile}: f{self.__metadata}')
+                    f'Read metadata from {self._metafile}: f{self._metadata}')
 
-    def __write_metadata(self):
-        if self.__metadata_dirty:
-            with open(self.__metafile, 'w+') as f:
-                json.dump(self.__metadata, f)
+    def _write_metadata(self):
+        if self._metadata_dirty:
+            with open(self._metafile, 'w+') as f:
+                json.dump(self._metadata, f)
                 logging.debug(
-                    f'Write metadata to {self.__metafile}: f{self.__metadata}')
-            self.__metadata_dirty = False
+                    f'Write metadata to {self._metafile}: f{self._metadata}')
+            self._metadata_dirty = False
 
-    def __read_metadata_blob(self):
-        with open(self.__encrypted_metafile, 'rb') as fe:
-            self.__gpg.decrypt_file(
-                fe, passphrase=self.__pswd, output=str(self.__metafile))
-            with open(self.__metafile, 'r') as f:
-                self.__metadata = json.load(f)
+    def _read_metadata_blob(self):
+        with open(self._encrypted_metafile, 'rb') as fe:
+            self._gpg.decrypt_file(
+                fe, passphrase=self._pswd, output=str(self._metafile))
+            with open(self._metafile, 'r') as f:
+                self._metadata = json.load(f)
 
-    def __write_metadata_blob(self):
-        with open(self.__metafile, 'rb') as f:
-            self.__gpg.encrypt_file(
-                f, None, symmetric=True, passphrase=self.__pswd, output=str(self.__encrypted_metafile))
+    def _write_metadata_blob(self):
+        with open(self._metafile, 'rb') as f:
+            self._gpg.encrypt_file(
+                f, None, symmetric=True, passphrase=self._pswd, output=str(self._encrypted_metafile))
 
-    def __sync_files_with_metadata(self):
-        self.__read_metadata()
+    def _sync_files_with_metadata(self):
+        self._read_metadata()
         # Some files have been removed since last commit
         # so remove them
         deleted_files = []
 
-        for relative_file in self.__metadata:
-            abs_file = self.__working_dir / relative_file
-            if abs_file not in self.__all_files:
+        for relative_file in self._metadata:
+            abs_file = self._working_dir / relative_file
+            if abs_file not in self._all_files:
                 logging.debug(
-                    f'Delete file {relative_file}. All files: {self.__all_files}. Metadata: {self.__metadata}')
+                    f'Delete file {relative_file}. All files: {self._all_files}. Metadata: {self._metadata}')
                 deleted_files.append(relative_file)
 
         for file in deleted_files:
             logging.info(
                 f'File "{file}" have been removed since last commit')
-            file_enc = (self.__output_dir /
-                        self.__metadata[file]['uuid']).with_suffix('.gpg')
+            file_enc = (self._output_dir /
+                        self._metadata[file]['uuid']).with_suffix('.gpg')
             if file_enc.is_file():
                 file_enc.unlink()
-            del self.__metadata[file]
-            self.__metadata_dirty = True
+            del self._metadata[file]
+            self._metadata_dirty = True
 
-        self.__write_metadata()
+        self._write_metadata()
 
-    def __decrypt_file(self, src: Path, dst: Path):
+    def _decrypt_file(self, src: Path, dst: Path):
         logging.info(
             f'Decrypt new or modified file "{dst}" from "{src}"')
         dst.parent.mkdir(exist_ok=True)
         with open(src, 'rb') as fe:
-            self.__gpg.decrypt_file(
-                fe, passphrase=self.__pswd, output=str(dst))
+            self._gpg.decrypt_file(
+                fe, passphrase=self._pswd, output=str(dst))
 
-    def __encrypt_file(self, src: Path, dst: Path):
+    def _encrypt_file(self, src: Path, dst: Path):
         with open(src, 'rb') as f:
-            self.__gpg.encrypt_file(
-                f, None, symmetric=True, passphrase=self.__pswd, output=str(dst))
+            self._gpg.encrypt_file(
+                f, None, symmetric=True, passphrase=self._pswd, output=str(dst))
 
-    def __add(self, file: Path, file_checksum: str = None) -> Tuple[Path, Path]:
-        key = self.__key(file)
-        file_uuid = uuid(self.__metadata)
+    def _add(self, file: Path, file_checksum: str = None) -> Tuple[Path, Path]:
+        key = self._key(file)
+        file_uuid = self._uuid()
         if not file_checksum:
             file_checksum = checksum(file)
-        self.__metadata[key] = {
+        self._metadata[key] = {
             'uuid': file_uuid, 'checksum': file_checksum}
-        self.__metadata_dirty = True
+        self._metadata_dirty = True
         logging.info(
-            f'Commit new file "{key}" as "%s"' % self.__metadata[key]['uuid'])
+            f'Commit new file "{key}" as "%s"' % self._metadata[key]['uuid'])
 
-        return file, (self.__output_dir / self.__metadata[key]['uuid']).with_suffix('.gpg')
+        return file, (self._output_dir / self._metadata[key]['uuid']).with_suffix('.gpg')
 
-    def __contains(self, file: Path) -> bool:
-        return self.__key(file) in self.__metadata
+    def _contains(self, file: Path) -> bool:
+        return self._key(file) in self._metadata
 
-    def __differ(self, file: Path, file_checksum: str) -> bool:
-        return self.__metadata[self.__key(file)]['checksum'] != file_checksum
+    def _differ(self, file: Path, file_checksum: str) -> bool:
+        return self._metadata[self._key(file)]['checksum'] != file_checksum
 
-    def __key(self, file: Path) -> str:
-        return str(file.relative_to(self.__working_dir))
+    def _key(self, file: Path) -> str:
+        return str(file.relative_to(self._working_dir))
 
-    def __update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path]:
-        key = self.__key(file)
-        self.__metadata[key]['checksum'] = file_checksum
-        self.__metadata_dirty = True
+    def _update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path]:
+        key = self._key(file)
+        self._metadata[key]['checksum'] = file_checksum
+        self._metadata_dirty = True
         logging.info(f'Commit modified file "{key}" as "%s": prev checksum="%s", new checksum="{file_checksum}"' % (
-            self.__metadata[key]['uuid'], self.__metadata[key]['checksum']))
-        return file, (self.__output_dir / self.__metadata[key]['uuid']).with_suffix('.gpg')
+            self._metadata[key]['uuid'], self._metadata[key]['checksum']))
+        return file, (self._output_dir / self._metadata[key]['uuid']).with_suffix('.gpg')
+
+    def _uuid(self) -> str:
+        """
+        Generate UUID for a file.
+
+        Generated UUID is checked for collision in database.
+
+        Parameters
+        ----------
+        metadata : dict
+            A dictionary with database.
+
+        Raises
+        ------
+        RuntimeError
+            If fails to generate UUID in 10 times.
+        """
+        for _ in range(10):
+            file_uuid = str(uuid4())
+            if not self._metadata:
+                logging.debug(f'Get UUID: {file_uuid}')
+                return file_uuid
+            no_collisions = True
+            for file_name, file_info in self._metadata.items():
+                if file_uuid != file_info['uuid']:
+                    continue
+                else:
+                    logging.debug(
+                        f'UUID "{file_uuid}" is used for "{file_name}"')
+                    no_collisions = False
+                    break
+            if no_collisions:
+                logging.debug(f'Get UUID: {file_uuid}')
+                return file_uuid
+        logging.debug('[CRITICAL] Failed to generate UUID')
+        raise RuntimeError('Failed to generate UUID')
 
 
+# TODO Use descriptive sometype instead 'str'
 def checksum(file: Path) -> str:
     """
     Calculate the MD5 checksum of a file
@@ -243,40 +280,3 @@ def get_all_files(working_dir: Path, exclude: List[Path] = []) -> List[Path]:
         if entry.is_file() and not excluded(entry):
             fs.append(entry)
     return fs
-
-
-def uuid(metadata: DataBase) -> str:
-    """
-    Generate UUID for a file.
-
-    Generated UUID is checked for collision in database.
-
-    Parameters
-    ----------
-    metadata : dict
-        A dictionary with database.
-
-    Raises
-    ------
-    RuntimeError
-        If fails to generate UUID in 10 times.
-    """
-    for _ in range(10):
-        file_uuid = str(uuid4())
-        if not metadata:
-            logging.debug(f'Get UUID: {file_uuid}')
-            return file_uuid
-        no_collisions = True
-        for file_name, file_info in metadata.items():
-            if file_uuid != file_info['uuid']:
-                continue
-            else:
-                logging.debug(
-                    f'UUID "{file_uuid}" is used for "{file_name}"')
-                no_collisions = False
-                break
-        if no_collisions:
-            logging.debug(f'Get UUID: {file_uuid}')
-            return file_uuid
-    logging.debug('[CRITICAL] Failed to generate UUID')
-    raise RuntimeError('Failed to generate UUID')
