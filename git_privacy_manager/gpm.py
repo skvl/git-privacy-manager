@@ -58,10 +58,14 @@ class GPM:
         Warnings
         --------
         The files from working directory are not removed!
+
+        Raises
+        ------
+        RuntimeError
+            If no metafile encrypted blob found.
         """
         if not self._encrypted_metafile.is_file():
-            logging.info('No encrypted data')
-            return
+            raise RuntimeError('Malformed output directory: no metafile encrypted blob found.')
 
         self._read_metadata_blob()
 
@@ -81,6 +85,11 @@ class GPM:
     def encrypt(self):
         """
         Encrypts files from working directory into data directory.
+
+        Raises
+        ------
+        RuntimeError
+            If fails to generate UUID for a file.
         """
         self._sync_files_with_metadata()
 
@@ -89,7 +98,7 @@ class GPM:
             key = self._key(file)
             file_checksum = checksum(file)
             if not self._contains(file):
-                files_to_encrypt.append(self._add(file, file_checksum=file_checksum))
+                files_to_encrypt.append(self._add(file, file_checksum))
             elif self._differ(file, file_checksum):
                 files_to_encrypt.append(self._update_checksum(file, file_checksum))
             else:
@@ -171,11 +180,15 @@ class GPM:
             self._gpg.encrypt_file(
                 f, None, symmetric=True, passphrase=self._pswd, output=str(dst))
 
-    def _add(self, file: Path, file_checksum: str = None) -> Tuple[Path, Path]:
+    def _add(self, file: Path, file_checksum: str) -> Tuple[Path, Path]:
+        """
+        Raises
+        ------
+        RuntimeError
+            If fails to generate UUID for a file.
+        """
         key = self._key(file)
         file_uuid = self._uuid()
-        if not file_checksum:
-            file_checksum = checksum(file)
         self._metadata[key] = {
             'uuid': file_uuid, 'checksum': file_checksum}
         self._metadata_dirty = True
