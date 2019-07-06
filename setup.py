@@ -1,4 +1,16 @@
 import setuptools
+from setuptools.command.install import install
+import shutil
+import sys
+
+
+class CheckEnvironmentInstallCommand(install):
+    def run(self):
+        if not shutil.which('gpg'):
+            print('Install GnuPG first.')
+            sys.exit(1)
+        install.run(self)
+
 
 about = {}
 with open("git_privacy_manager/__about__.py") as f:
@@ -41,5 +53,8 @@ setuptools.setup(
             'build_dir': ('setup.py', 'docs/_build'),
             'source_dir': ('setup.py', 'docs'),
         },
+    },
+    cmdclass={
+        'install': CheckEnvironmentInstallCommand,
     },
 )
