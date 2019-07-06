@@ -24,6 +24,27 @@ def add_file(working_directory):
     return file_path, file_data
 
 
+def files_in_directory(path: Path):
+    all_files = path.rglob('*')
+    return len([f for f in all_files if f.is_file()])
+
+
+class TestCustomOutputDir(unittest.TestCase):
+    def setUp(self):
+        self.working_directory = Path(tempfile.mkdtemp())
+        self.output_direcotry = Path(tempfile.mkdtemp())
+        self.pswd = '123'
+        self.gpm = gpm.GPM(self.working_directory,
+                           self.pswd, self.output_direcotry)
+
+    def test_custom_output_dir(self):
+        self.assertEqual(0, files_in_directory(self.output_direcotry))
+        add_file(self.working_directory)
+        self.gpm.encrypt()
+        # Now there are metafile and file blobs
+        self.assertEqual(2, files_in_directory(self.output_direcotry))
+
+
 class TestSingleFileCRUD(unittest.TestCase):
     """
     Test CRUD operations against single file.

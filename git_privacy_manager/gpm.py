@@ -20,7 +20,7 @@ class GPM:
     stored in database.
     """
 
-    def __init__(self, path: Path, pswd: str):
+    def __init__(self, path: Path, pswd: str, output: Path = None):
         """
         Parameters
         ----------
@@ -42,9 +42,13 @@ class GPM:
         self._working_dir = path
         self._metadata_dir = self._working_dir / '.gpm'
         self._metafile = self._metadata_dir / 'metafile'
-        self._output_dir = self._metadata_dir / 'data'
+        if not output:
+            self._output_dir = self._metadata_dir / 'data'
+        else:
+            self._output_dir = output
         self._encrypted_metafile = self._output_dir / 'meta.gpg'
 
+        self._metadata_dir.mkdir(exist_ok=True, parents=True)
         self._output_dir.mkdir(exist_ok=True, parents=True)
 
         self._all_files: List[Path] = []
