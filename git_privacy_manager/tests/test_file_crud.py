@@ -13,15 +13,23 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import uuid  # Used to generate random string
+from .utils import add_file, files_in_directory
 
 
-def add_file(working_directory):
-    file_data = str(uuid.uuid4())
-    file_handle, file_path = tempfile.mkstemp(dir=working_directory, text=True)
-    with open(file_handle, 'w') as f:
-        f.write(file_data)
+class TestCustomOutputDir(unittest.TestCase):
+    def setUp(self):
+        self.working_directory = Path(tempfile.mkdtemp())
+        self.output_direcotry = Path(tempfile.mkdtemp())
+        self.pswd = '123'
+        self.gpm = gpm.GPM(self.working_directory,
+                           self.pswd, self.output_direcotry)
 
-    return file_path, file_data
+    def test_custom_output_dir(self):
+        self.assertEqual(0, files_in_directory(self.output_direcotry))
+        add_file(self.working_directory)
+        self.gpm.encrypt()
+        # Now there are metafile and file blobs
+        self.assertEqual(2, files_in_directory(self.output_direcotry))
 
 
 class TestSingleFileCRUD(unittest.TestCase):
