@@ -76,7 +76,7 @@ class TestSingleFileCRUD(unittest.TestCase):
         self.assertFalse(os.path.exists(self.file_path))
 
     def test_decrypt_malformed(self):
-        self.gpm._encrypted_metafile.unlink()
+        self.gpm._metafile_blob.unlink()
         with self.assertRaises(RuntimeError):
             self.gpm.decrypt()
 
