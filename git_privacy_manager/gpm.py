@@ -18,6 +18,11 @@ class GPM:
     Resulting blobs with random names are stored in single output
     directory. The relationship between actual files and blobs is
     stored in database.
+
+    Notes
+    -----
+
+    In a code by "blob" the "encrypted file" is ment.
     """
 
     def __init__(self, directory: Path, pswd: str, output: Path = None):
@@ -46,7 +51,7 @@ class GPM:
             self._output_dir = self._metadata_dir / 'data'
         else:
             self._output_dir = output
-        self._encrypted_metafile = self._output_dir / 'meta.gpg'
+        self._metafile_blob = self._output_dir / 'meta.gpg'
 
         self._metadata_dir.mkdir(exist_ok=True, parents=True)
         self._output_dir.mkdir(exist_ok=True, parents=True)
@@ -130,18 +135,14 @@ class GPM:
             self._metadata_dirty = False
 
     def _read_metadata_blob(self):
-        if not self._encrypted_metafile.is_file():
+        if not self._metafile_blob.is_file():
             raise RuntimeError('Malformed output directory: no metafile encrypted blob found.')
-        with open(self._encrypted_metafile, 'rb') as fe:
-            self._gpg.decrypt_file(
-                fe, passphrase=self._pswd, output=str(self._metafile))
-            with open(self._metafile, 'r') as f:
-                self._metadata = json.load(f)
+        self._decrypt_file(self._metafile_blob, self._metafile)
+        with open(self._metafile, 'r') as f:
+            self._metadata = json.load(f)
 
     def _write_metadata_blob(self):
-        with open(self._metafile, 'rb') as f:
-            self._gpg.encrypt_file(
-                f, None, symmetric=True, passphrase=self._pswd, output=str(self._encrypted_metafile))
+        self._encrypt_file(self._metafile, self._metafile_blob)
 
     def _remove_ramains_in_output_dir(self):
         self._all_files = get_all_files(
