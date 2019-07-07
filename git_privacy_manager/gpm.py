@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 from uuid import uuid4
 
 
+# TODO Fix type
 DataBase = Dict[str, Dict[str, str]]
 
 
@@ -25,7 +26,8 @@ class GPM:
     In a code by "blob" the "encrypted file" is ment.
     """
 
-    def __init__(self, directory: Path, pswd: str, output: Path = None):
+    # TODO Add callback function to receive a passphrase
+    def __init__(self, directory: Path, pswd: str = None, output: Path = None):
         """
         Parameters
         ----------
@@ -44,7 +46,7 @@ class GPM:
         self._gpg = gnupg.GPG()
         self._pswd = pswd
 
-        self._working_dir = directory
+        self._working_dir = directory.resolve()
         self._metadata_dir = self._working_dir / '.gpm'
         self._metafile = self._metadata_dir / 'metafile'
         if not output:
@@ -60,6 +62,20 @@ class GPM:
         self._metadata: DataBase = {}
         self._metadata_dirty = False
 
+        self._read_metadata()
+
+    def __del__(self):
+        self._write_metadata()
+
+    @property
+    def passphrase(self):
+        return self._pswd
+
+    @passphrase.setter
+    def passphrase(self, passphrase: str):
+        # TODO Check passphrase complexity
+        self._pswd = passphrase
+
     def decrypt(self):
         """
         Decrypt blobs from data directory into working directory.
@@ -72,6 +88,7 @@ class GPM:
         ------
         RuntimeError
             If no metafile encrypted blob found.
+            If file not in working directory.
         """
         self._read_metadata_blob()
 
@@ -97,6 +114,7 @@ class GPM:
         ------
         RuntimeError
             If fails to generate UUID for a file.
+            If file not in working directory.
         """
         self._remove_ramains_in_output_dir()
 
@@ -171,6 +189,12 @@ class GPM:
         self._write_metadata()
 
     def _remove_remains_in_working_dir(self):
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
         self._all_files = get_all_files(
             self._working_dir, [self._metadata_dir])
 
@@ -185,6 +209,8 @@ class GPM:
     def _decrypt_file(self, src: Path, dst: Path, passphrase: str = None):
         if not passphrase:
             passphrase = self._pswd
+        if not passphrase:
+            raise RuntimeError('No passphrase specified.')
         dst.parent.mkdir(exist_ok=True)
         with open(src, 'rb') as fe:
             self._gpg.decrypt_file(
@@ -193,6 +219,8 @@ class GPM:
     def _encrypt_file(self, src: Path, dst: Path, passphrase: str = None):
         if not passphrase:
             passphrase = self._pswd
+        if not passphrase:
+            raise RuntimeError('No passphrase specified.')
         with open(src, 'rb') as f:
             self._gpg.encrypt_file(
                 f, None, symmetric=True, passphrase=passphrase, output=str(dst))
@@ -203,6 +231,7 @@ class GPM:
         ------
         RuntimeError
             If fails to generate UUID for a file.
+            If file not in working directory.
         """
         key = self._key(file)
         file_uuid = self._uuid()
@@ -215,12 +244,32 @@ class GPM:
         return file, self._blob(key), file_passphrase
 
     def _contains(self, file: Path) -> bool:
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
         return self._key(file) in self._metadata
 
     def _differ(self, file: Path, file_checksum: str) -> bool:
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
         return self._metadata[self._key(file)]['checksum'] != file_checksum
 
     def _key(self, file: Path) -> str:
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
+        if self._working_dir not in file.parents:
+            raise RuntimeError(f'The "{file}" not in working directory')
         return str(file.relative_to(self._working_dir))
 
     def _blob(self, key: str) -> Path:
@@ -228,6 +277,12 @@ class GPM:
         return (self._output_dir / file_uuid).with_suffix('.gpg')
 
     def _update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path, str]:
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
         key = self._key(file)
         file_uuid = self._metadata[key]['uuid']
         old_checksum = self._metadata[key]['checksum']
