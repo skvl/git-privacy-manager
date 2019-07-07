@@ -45,8 +45,8 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/skvl/git-privacy-manager",
-    project_urls = {
-        'Source' : 'https://github.com/skvl/git-privacy-manager',
+    project_urls={
+        'Source': 'https://github.com/skvl/git-privacy-manager',
         'Tracker': 'https://github.com/skvl/git-privacy-manager/issues'
     },
     packages=setuptools.find_packages(),
@@ -60,11 +60,11 @@ setuptools.setup(
         "Topic :: Communications :: File Sharing",
     ],
     python_requires='~=3.7',
-    install_requires = [ 'python-gnupg >= 0.4.4, < 0.5.0' ],
-    entry_points = {
+    install_requires=['python-gnupg >= 0.4.4, < 0.5.0'],
+    entry_points={
         'console_scripts': ['gpm=git_privacy_manager.command_line:main'],
     },
-    test_suite = 'git_privacy_manager.tests',
+    test_suite='git_privacy_manager.tests',
     command_options={
         'build_sphinx': {
             'build_dir': ('setup.py', 'docs/_build'),
