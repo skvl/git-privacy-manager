@@ -2,13 +2,14 @@ import gnupg
 import hashlib
 import json
 import logging
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Dict, List, Tuple
 from uuid import uuid4
 
 
+# TODO Fix type
 DataBase = Dict[str, Dict[str, str]]
-
+Tag = PurePath
 
 class GPM:
     """
@@ -25,7 +26,8 @@ class GPM:
     In a code by "blob" the "encrypted file" is ment.
     """
 
-    def __init__(self, directory: Path, pswd: str, output: Path = None):
+    # TODO Add callback function to receive a passphrase
+    def __init__(self, directory: Path, pswd: str = None, output: Path = None):
         """
         Parameters
         ----------
@@ -44,7 +46,7 @@ class GPM:
         self._gpg = gnupg.GPG()
         self._pswd = pswd
 
-        self._working_dir = directory
+        self._working_dir = directory.resolve()
         self._metadata_dir = self._working_dir / '.gpm'
         self._metafile = self._metadata_dir / 'metafile'
         if not output:
@@ -60,6 +62,14 @@ class GPM:
         self._metadata: DataBase = {}
         self._metadata_dirty = False
 
+        self._read_metadata()
+
+    def __del__(self):
+        self._write_metadata()
+
+    def set_passphrase(self, passphrase: str):
+        self._pswd = passphrase
+
     def decrypt(self):
         """
         Decrypt blobs from data directory into working directory.
@@ -72,6 +82,7 @@ class GPM:
         ------
         RuntimeError
             If no metafile encrypted blob found.
+            If file not in working directory.
         """
         self._read_metadata_blob()
 
@@ -97,6 +108,7 @@ class GPM:
         ------
         RuntimeError
             If fails to generate UUID for a file.
+            If file not in working directory.
         """
         self._remove_ramains_in_output_dir()
 
@@ -117,6 +129,100 @@ class GPM:
 
         self._write_metadata()
         self._write_metadata_blob()
+
+    def tag_add(self, file: Path, tag: Tag):
+        """
+        Add a tag to a file.
+
+        A tag has a form of a Unix-like path. E.g. '/books/IT'.
+
+        Parameters
+        ----------
+
+        file: Path
+            A path to a file under working directory.
+        tag: PurePath
+            A Unix-like path denoting a hierarchical tag.
+
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
+        key = self._key(file)
+        if str(tag) not in self._metadata[key].get('tags', []):
+            self._metadata[key]['tags'].append(str(tag)) # type: ignore
+            self._metadata_dirty = True
+
+    def tag_delete(self, file: Path, tag: Tag):
+        """
+        Remove a tag from file.
+
+        Parameters
+        ----------
+
+        file: Path
+            A path to a file under working directory.
+        tag: PurePath
+            A Unix-like path denoting a hierarchical tag.
+
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
+        key = self._key(file)
+        try:
+            self._metadata[key]['tags'].remove(str(tag)) # type: ignore
+            self._metadata_dirty = True
+        except ValueError:
+            pass
+
+    def tag_list(self, file: Path) -> List[Tag]:
+        """
+        List tags for a file.
+
+        Parameters
+        ----------
+
+        file: Path
+            A path to a file under working directory.
+
+        Returns
+        -------
+        [PurePath]
+            A list of tags for a file.
+
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
+        key = self._key(file)
+        tags = self._metadata[key].get('tags', [])
+        return list(map(lambda path: Tag(path), tags))
+
+    # TODO Add fuzzy-search
+    def tag_search(self, tag: Tag) -> List[Path]:
+        """
+        List files with tag.
+
+        Parameters
+        ----------
+
+        tag: PurePath
+            A Unix-like path denoting a hierarchical tag.
+
+        Returns
+        -------
+        [Path]
+            A list of files.
+        """
+        files = []
+        for key, value in self._metadata.items():
+            if str(tag) in value['tags']: # type: ignore
+                files.append(self._working_dir / key)
+        return files
 
     def _read_metadata(self):
         # Load metadata if present
@@ -171,6 +277,12 @@ class GPM:
         self._write_metadata()
 
     def _remove_remains_in_working_dir(self):
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
         self._all_files = get_all_files(
             self._working_dir, [self._metadata_dir])
 
@@ -185,6 +297,8 @@ class GPM:
     def _decrypt_file(self, src: Path, dst: Path, passphrase: str = None):
         if not passphrase:
             passphrase = self._pswd
+        if not passphrase:
+            raise RuntimeError('No passphrase specified.')
         dst.parent.mkdir(exist_ok=True)
         with open(src, 'rb') as fe:
             self._gpg.decrypt_file(
@@ -193,6 +307,8 @@ class GPM:
     def _encrypt_file(self, src: Path, dst: Path, passphrase: str = None):
         if not passphrase:
             passphrase = self._pswd
+        if not passphrase:
+            raise RuntimeError('No passphrase specified.')
         with open(src, 'rb') as f:
             self._gpg.encrypt_file(
                 f, None, symmetric=True, passphrase=passphrase, output=str(dst))
@@ -203,24 +319,45 @@ class GPM:
         ------
         RuntimeError
             If fails to generate UUID for a file.
+            If file not in working directory.
         """
         key = self._key(file)
         file_uuid = self._uuid()
         file_passphrase = file_checksum
-        self._metadata[key] = {
-            'uuid': file_uuid, 'checksum': file_checksum, 'passphrase': file_passphrase}
+        self._metadata[key] = { # type: ignore
+            'uuid': file_uuid, 'checksum': file_checksum, 'passphrase': file_passphrase, 'tags': []} # type: ignore
         self._metadata_dirty = True
         logging.info(f'Commit new file "{key}" as "{file_uuid}"')
 
         return file, self._blob(key), file_passphrase
 
     def _contains(self, file: Path) -> bool:
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
         return self._key(file) in self._metadata
 
     def _differ(self, file: Path, file_checksum: str) -> bool:
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
         return self._metadata[self._key(file)]['checksum'] != file_checksum
 
     def _key(self, file: Path) -> str:
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
+        if self._working_dir not in file.parents:
+            raise RuntimeError(f'The "{file}" not in working directory')
         return str(file.relative_to(self._working_dir))
 
     def _blob(self, key: str) -> Path:
@@ -228,6 +365,12 @@ class GPM:
         return (self._output_dir / file_uuid).with_suffix('.gpg')
 
     def _update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path, str]:
+        """
+        Raises
+        ------
+        RuntimeError
+            If file not in working directory.
+        """
         key = self._key(file)
         file_uuid = self._metadata[key]['uuid']
         old_checksum = self._metadata[key]['checksum']

@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "056c2924a1e2c1b220479798af6a3f7577ee01645237b41dee38d8fc5380f6f0"
+            "sha256": "db13196f2e4b99c5dede969106001f296c43cde53a584f34b29b85f6d27d0a1e"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -73,6 +73,10 @@
                 "sha256:7a4bd47eaf6596e1295ecb11361139febe29b084a87bf005bf899f9a42edc3c6"
             ],
             "version": "==0.14"
+        },
+        "git-privacy-manager": {
+            "editable": true,
+            "path": "."
         },
         "idna": {
             "hashes": [
@@ -172,6 +176,14 @@
                 "sha256:9b6323ef4ab914af344ba97510e966d64ba91055d6b9afa6b30799340e89cc03"
             ],
             "version": "==2.4.0"
+        },
+        "python-gnupg": {
+            "hashes": [
+                "sha256:45daf020b370bda13a1429c859fcdff0b766c0576844211446f9266cae97fb0e",
+                "sha256:85c231850a0275c9722f06e34b45a22510b83a6a6e88f93b5ae32ba04c95056c"
+            ],
+            "index": "pypi",
+            "version": "==0.4.4"
         },
         "pytz": {
             "hashes": [
