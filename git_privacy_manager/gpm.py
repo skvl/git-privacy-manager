@@ -76,10 +76,11 @@ class GPM:
             if not file.is_file() or checksum(file) != self._metadata[relative_file]['checksum']:
                 file_enc = (self._output_dir /
                             self._metadata[relative_file]['uuid']).with_suffix('.gpg')
-                files_to_decrypt.append((file, file_enc))
+                passphrase = self._metadata[relative_file]['passphrase']
+                files_to_decrypt.append((file, file_enc, passphrase))
 
-        for file, file_enc in files_to_decrypt:
-            self._decrypt_file(file_enc, file)
+        for file, file_enc, passphrase in files_to_decrypt:
+            self._decrypt_file(file_enc, file, passphrase)
 
         self._remove_remains_in_working_dir()
         self._remove_ramains_in_output_dir()
@@ -107,8 +108,8 @@ class GPM:
                 logging.info(
                     f'Skip file "{key}" (%s)' % self._metadata[key]['uuid'])
 
-        for file, file_enc in files_to_encrypt:
-            self._encrypt_file(file, file_enc)
+        for file, file_enc, passphrase in files_to_encrypt:
+            self._encrypt_file(file, file_enc, passphrase)
 
         self._write_metadata()
         self._write_metadata_blob()
@@ -182,20 +183,22 @@ class GPM:
         self._all_files = get_all_files(
             self._working_dir, [self._metadata_dir])
 
-    def _decrypt_file(self, src: Path, dst: Path):
-        logging.info(
-            f'Decrypt new or modified file "{dst}" from "{src}"')
+    def _decrypt_file(self, src: Path, dst: Path, passphrase: str = None):
+        if not passphrase:
+            passphrase = self._pswd
         dst.parent.mkdir(exist_ok=True)
         with open(src, 'rb') as fe:
             self._gpg.decrypt_file(
-                fe, passphrase=self._pswd, output=str(dst))
+                fe, passphrase=passphrase, output=str(dst))
 
-    def _encrypt_file(self, src: Path, dst: Path):
+    def _encrypt_file(self, src: Path, dst: Path, passphrase: str = None):
+        if not passphrase:
+            passphrase = self._pswd
         with open(src, 'rb') as f:
             self._gpg.encrypt_file(
-                f, None, symmetric=True, passphrase=self._pswd, output=str(dst))
+                f, None, symmetric=True, passphrase=passphrase, output=str(dst))
 
-    def _add(self, file: Path, file_checksum: str) -> Tuple[Path, Path]:
+    def _add(self, file: Path, file_checksum: str) -> Tuple[Path, Path, str]:
         """
         Raises
         ------
@@ -204,13 +207,13 @@ class GPM:
         """
         key = self._key(file)
         file_uuid = self._uuid()
+        file_passphrase = file_checksum
         self._metadata[key] = {
-            'uuid': file_uuid, 'checksum': file_checksum}
+            'uuid': file_uuid, 'checksum': file_checksum, 'passphrase': file_passphrase}
         self._metadata_dirty = True
-        logging.info(
-            f'Commit new file "{key}" as "%s"' % self._metadata[key]['uuid'])
+        logging.info(f'Commit new file "{key}" as "{file_uuid}"')
 
-        return file, (self._output_dir / self._metadata[key]['uuid']).with_suffix('.gpg')
+        return file, (self._output_dir / file_uuid).with_suffix('.gpg'), file_passphrase
 
     def _contains(self, file: Path) -> bool:
         return self._key(file) in self._metadata
@@ -221,13 +224,16 @@ class GPM:
     def _key(self, file: Path) -> str:
         return str(file.relative_to(self._working_dir))
 
-    def _update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path]:
+    def _update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path, str]:
         key = self._key(file)
+        file_uuid = self._metadata[key]['uuid']
+        old_checksum = self._metadata[key]['checksum']
+        file_passphrase = file_checksum
         self._metadata[key]['checksum'] = file_checksum
+        self._metadata[key]['passphrase'] = file_passphrase
         self._metadata_dirty = True
-        logging.info(f'Commit modified file "{key}" as "%s": prev checksum="%s", new checksum="{file_checksum}"' % (
-            self._metadata[key]['uuid'], self._metadata[key]['checksum']))
-        return file, (self._output_dir / self._metadata[key]['uuid']).with_suffix('.gpg')
+        logging.info(f'Commit modified file "{key}" as "{file_uuid}": prev checksum="{old_checksum}", new checksum="{file_checksum}"')
+        return file, (self._output_dir / file_uuid).with_suffix('.gpg'), file_passphrase
 
     def _uuid(self) -> str:
         """
