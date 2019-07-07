@@ -2,20 +2,20 @@ language: python
 
 matrix:
   include:
-    - name: "Linux"
+    - name: "Unit testing"
       os: linux
       dist: xenial
       python: "3.7"
       before_install:
         - sudo apt-get install -y gnupg
-        - pip install codecov
+        - pip3 install codecov
       addons:
         sonarcloud:
           organization: "skvl-github"
           token:
             secure: "$SONAR_TOKEN"
       install:
-        - pip install pipenv
+        - pip3 install pipenv
         - pipenv install -d -v
       script:
         - coverage run ./setup.py test
@@ -24,17 +24,29 @@ matrix:
       after_success:
         - codecov
 
+    - name: "Linux"
+      os: linux
+      dist: xenial
+      python: "3.7"
+      before_install:
+        - sudo apt-get install -y gnupg
+      install:
+        - python3 ./setup.py install
+      script:
+        - gpm -h
+
     - name: "Windows"
       os: windows
       language: shell
       before_install:
-        - choco install python --version 3.7.3
+        - choco install -y python --version 3.7.3
+        - choco install -y gpg4win-vanilla
         - python -m pip install --upgrade pip
       env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
       install:
         - python ./setup.py install
       script:
-        - gpm.exe -h
+        - gpm -h
 
     - name: "OS X"
       os: osx
