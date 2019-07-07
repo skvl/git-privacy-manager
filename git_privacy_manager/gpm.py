@@ -20,12 +20,12 @@ class GPM:
     stored in database.
     """
 
-    def __init__(self, path: Path, pswd: str, output: Path = None):
+    def __init__(self, directory: Path, pswd: str, output: Path = None):
         """
         Parameters
         ----------
 
-        path : str
+        directory : str
             Path to working directory with files to encrypt
         pswd : str
             Password for symmetric encryption
@@ -39,7 +39,7 @@ class GPM:
         self._gpg = gnupg.GPG()
         self._pswd = pswd
 
-        self._working_dir = path
+        self._working_dir = directory
         self._metadata_dir = self._working_dir / '.gpm'
         self._metafile = self._metadata_dir / 'metafile'
         if not output:
@@ -71,16 +71,15 @@ class GPM:
         self._read_metadata_blob()
 
         files_to_decrypt = []
-        for relative_file in self._metadata:
-            file = self._working_dir / relative_file
-            if not file.is_file() or checksum(file) != self._metadata[relative_file]['checksum']:
-                file_enc = (self._output_dir /
-                            self._metadata[relative_file]['uuid']).with_suffix('.gpg')
-                passphrase = self._metadata[relative_file]['passphrase']
-                files_to_decrypt.append((file, file_enc, passphrase))
+        for key in self._metadata:
+            file = self._working_dir / key
+            if not file.is_file() or checksum(file) != self._metadata[key]['checksum']:
+                blob = self._blob(key)
+                passphrase = self._metadata[key]['passphrase']
+                files_to_decrypt.append((file, blob, passphrase))
 
-        for file, file_enc, passphrase in files_to_decrypt:
-            self._decrypt_file(file_enc, file, passphrase)
+        for file, blob, passphrase in files_to_decrypt:
+            self._decrypt_file(blob, file, passphrase)
 
         self._remove_remains_in_working_dir()
         self._remove_ramains_in_output_dir()
@@ -108,8 +107,8 @@ class GPM:
                 logging.info(
                     f'Skip file "{key}" (%s)' % self._metadata[key]['uuid'])
 
-        for file, file_enc, passphrase in files_to_encrypt:
-            self._encrypt_file(file, file_enc, passphrase)
+        for file, blob, passphrase in files_to_encrypt:
+            self._encrypt_file(file, blob, passphrase)
 
         self._write_metadata()
         self._write_metadata_blob()
@@ -152,21 +151,20 @@ class GPM:
         # so remove them
         deleted_files = []
 
-        for relative_file in self._metadata:
-            abs_file = self._working_dir / relative_file
-            if abs_file not in self._all_files:
+        for key in self._metadata:
+            file = self._working_dir / key
+            if file not in self._all_files:
                 logging.debug(
-                    f'Delete file {relative_file}. All files: {self._all_files}. Metadata: {self._metadata}')
-                deleted_files.append(relative_file)
+                    f'Delete file {key}. All files: {self._all_files}. Metadata: {self._metadata}')
+                deleted_files.append(key)
 
-        for file in deleted_files:
+        for key in deleted_files:
             logging.info(
-                f'File "{file}" have been removed since last commit')
-            file_enc = (self._output_dir /
-                        self._metadata[file]['uuid']).with_suffix('.gpg')
-            if file_enc.is_file():
-                file_enc.unlink()
-            del self._metadata[file]
+                f'File "{key}" have been removed since last commit')
+            blob = self._blob(key)
+            if blob.is_file():
+                blob.unlink()
+            del self._metadata[key]
             self._metadata_dirty = True
 
         self._write_metadata()
@@ -213,7 +211,7 @@ class GPM:
         self._metadata_dirty = True
         logging.info(f'Commit new file "{key}" as "{file_uuid}"')
 
-        return file, (self._output_dir / file_uuid).with_suffix('.gpg'), file_passphrase
+        return file, self._blob(key), file_passphrase
 
     def _contains(self, file: Path) -> bool:
         return self._key(file) in self._metadata
@@ -224,6 +222,10 @@ class GPM:
     def _key(self, file: Path) -> str:
         return str(file.relative_to(self._working_dir))
 
+    def _blob(self, key: str) -> Path:
+        file_uuid = self._metadata[key]['uuid']
+        return (self._output_dir / file_uuid).with_suffix('.gpg')
+
     def _update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path, str]:
         key = self._key(file)
         file_uuid = self._metadata[key]['uuid']
@@ -233,7 +235,7 @@ class GPM:
         self._metadata[key]['passphrase'] = file_passphrase
         self._metadata_dirty = True
         logging.info(f'Commit modified file "{key}" as "{file_uuid}": prev checksum="{old_checksum}", new checksum="{file_checksum}"')
-        return file, (self._output_dir / file_uuid).with_suffix('.gpg'), file_passphrase
+        return file, self._blob(key), file_passphrase
 
     def _uuid(self) -> str:
         """
