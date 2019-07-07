@@ -5,11 +5,28 @@ import sys
 
 
 class CheckEnvironmentInstallCommand(install):
+    """
+    Check and prepare setup environment.
+
+    Run checks against environment before install here.
+
+    Warnings
+    --------
+
+    According to [1]_ there is a bug in setuptools preventing to install
+    dependencies in some cases. So some additional checks should be used.
+    The checks are not used here at the time.
+
+    References
+    ----------
+
+    .. [1] https://stackoverflow.com/a/22179371
+    """
     def run(self):
         if not shutil.which('gpg'):
             print('Install GnuPG first.')
             sys.exit(1)
-        install.run(self)
+        self.do_egg_install()
 
 
 about = {}
