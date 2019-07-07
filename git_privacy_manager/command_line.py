@@ -1,46 +1,40 @@
 import argparse
-import getpass
-import git_privacy_manager
+import click
+from getpass import getpass
+from git_privacy_manager import GPM
 import os
 from pathlib import Path
 import sys
 
 
-def impl_decrypt(gpm):
-    gpm.decrypt()
+@click.group()
+@click.pass_context
+@click.option('--directory', '-d', help='Path to working directory (default: current)', type=click.Path(), default=os.getcwd())
+@click.option('--output', '-o', help='Path to output directory', type=click.Path(), default=None)
+@click.option('--passphrase', '-p', help='Passphrase for symmetric encryption', type=str, default=None)
+def main(ctx, directory, output, passphrase):
+#    args.function(git_privacy_manager.GPM(Path(args.path), pswd, Path(args.output)))
+    if not passphrase:
+        passphrase = getpass(prompt='Enter a passphrase:')
+
+    directory = Path(directory)
+    if output:
+        output = Path(output)
+
+    ctx.obj = {
+        'directory': directory,
+        'output': output,
+        'passphrase': passphrase,
+    }
 
 
-def impl_encrypt(gpm):
-    gpm.encrypt()
+@main.command()
+@click.pass_context
+def encrypt(ctx):
+    GPM(ctx.obj['directory'], ctx.obj['passphrase'], ctx.obj['output']).encrypt()
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='Git Privacy Manager (GPM)')
-
-    parser.add_argument('-p', '--path', dest='path', default=os.getcwd(),
-                        help=f'Path to working directory (current directory by default)')
-    parser.add_argument('-o', '--output', dest='output', default=None,
-                        help='Path to output directory')
-
-    subparsers = parser.add_subparsers()
-
-    encrypt = subparsers.add_parser('encrypt', help='Encrypt all files')
-    encrypt.set_defaults(function=impl_encrypt)
-
-    decrypt = subparsers.add_parser('decrypt', help='Decrypt all files')
-    decrypt.set_defaults(function=impl_decrypt)
-
-    if len(sys.argv) == 1:
-        parser.print_help(sys.stderr)
-        sys.exit(1)
-
-    return parser.parse_args()
-
-
-def main():
-    args = parse_args()
-    pswd = getpass.getpass(prompt='Password: ')
-
-    # Apply command
-    args.function(git_privacy_manager.GPM(
-        Path(args.path), pswd, Path(args.output)))
+@main.command()
+@click.pass_context
+def decrypt(ctx):
+    GPM(ctx.obj['directory'], ctx.obj['passphrase'], ctx.obj['output']).decrypt()
