@@ -15,3 +15,4 @@ Welcome to Git Privacy Manager's documentation!
 
    modules
 
+This is a branch for testing sparse-checkout: http://scriptedonachip.com/git-sparse-checkout
