@@ -3,15 +3,32 @@ Git Privacy Manager: GPM
 
 |build-status| |sonarcloud| |lgtm| |codecov| |docs|
 
-GPM lets you to store sensitive information in open repositories like GitHub.
+GPM lets you to manage files, synchronize it between multiple devices
+and securely backup it to multiple repositories.
 
 Futures
 -------
 
-* Encrypts files with GPG
-* Stores meta-data to avoid encrypting or decrypting unchanged files
-* Stores encrypted blobs in subdirectory
-* Follows `Semantic Versioning 2.0.0 <https://semver.org/>`_
+* File management
+* Extensible meta-data for each file
+* Hierarchical tags for each file
+* Peer-to-peer synchronization
+* Partial synchronization
+* Encrypted backups to multiple repositories
+* Specifiyng repositories per file
+* Cross-platform GUI
+
+Roadmap
+-------
+
+* v0.1.0 - encrypted backups for local file system with CLI
+* v0.2.0 - conflict resolution while synchronization
+* v0.3.0 - partial synchronization
+* v0.4.0 - hierarchical tags management
+* v0.5.0 - user provided meta-data per file
+* v1.0.0 - basic cross-platform GUI
+* v1.1.0 - peer-to-peer synchronization
+* v1.2.0 - pluggable architecture
 
 Dependencies
 ------------
