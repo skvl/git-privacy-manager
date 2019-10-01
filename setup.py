@@ -1,32 +1,4 @@
 import setuptools
-from setuptools.command.install import install
-import shutil
-import sys
-
-
-class CheckEnvironmentInstallCommand(install):
-    """
-    Check and prepare setup environment.
-
-    Run checks against environment before install here.
-
-    Warnings
-    --------
-
-    According to [1]_ there is a bug in setuptools preventing to install
-    dependencies in some cases. So some additional checks should be used.
-    The checks are not used here at the time.
-
-    References
-    ----------
-
-    .. [1] https://stackoverflow.com/a/22179371
-    """
-    def run(self):
-        if not shutil.which('gpg'):
-            print('Install GnuPG first.')
-            sys.exit(1)
-        self.do_egg_install()
 
 
 about = {}
@@ -60,7 +32,7 @@ setuptools.setup(
         "Topic :: Communications :: File Sharing",
     ],
     python_requires='~=3.7',
-    install_requires=['python-gnupg >= 0.4.4, < 0.5.0', 'click >= 7.0, < 8.0'],
+    install_requires=['cryptography >= 2.7, < 3.0', 'click >= 7.0, < 8.0'],
     entry_points={
         'console_scripts': ['gpm=git_privacy_manager.command_line:main'],
     },
@@ -70,8 +42,5 @@ setuptools.setup(
             'build_dir': ('setup.py', 'docs/_build'),
             'source_dir': ('setup.py', 'docs'),
         },
-    },
-    cmdclass={
-        'install': CheckEnvironmentInstallCommand,
     },
 )

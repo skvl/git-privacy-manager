@@ -1,14 +1,19 @@
-import gnupg
+import base64
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, padding
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+import struct
+from typing import Any, Dict, List, Tuple
 from uuid import uuid4
 
+from .utils.crypto import Crypto
 
 # TODO Fix type
-DataBase = Dict[str, Dict[str, str]]
+DataBase = Dict[str, Dict[str, Any]]
 
 
 class GPM:
@@ -27,14 +32,14 @@ class GPM:
     """
 
     # TODO Add callback function to receive a passphrase
-    def __init__(self, directory: Path, pswd: str = None, output: Path = None):
+    def __init__(self, directory: Path, key: str = None, output: Path = None):
         """
         Parameters
         ----------
 
         directory : str
             Path to working directory with files to encrypt
-        pswd : str
+        key : str
             Password for symmetric encryption
 
         Notes
@@ -43,8 +48,8 @@ class GPM:
         The *.gpm* folder will be created to store metadata.
         The *.gpm/data* folder will be created to store encrypted blobs.
         """
-        self._gpg = gnupg.GPG()
-        self._pswd = pswd
+        if key:
+            self._crypto_key : bytes = self._safe_key(key)
 
         self._working_dir = directory.resolve()
         self._metadata_dir = self._working_dir / '.gpm'
@@ -68,13 +73,13 @@ class GPM:
         self._write_metadata()
 
     @property
-    def passphrase(self):
-        return self._pswd
+    def key(self):
+        return self._crypto_key
 
-    @passphrase.setter
-    def passphrase(self, passphrase: str):
+    @key.setter
+    def key(self, key: str):
         # TODO Check passphrase complexity
-        self._pswd = passphrase
+        self._crypto_key = self._safe_key(key)
 
     def decrypt(self):
         """
@@ -97,7 +102,7 @@ class GPM:
             file = self._working_dir / key
             if not file.is_file() or checksum(file) != self._metadata[key]['checksum']:
                 blob = self._blob(key)
-                passphrase = self._metadata[key]['passphrase']
+                passphrase = self._metadata[key]['passphrase'].encode()
                 files_to_decrypt.append((file, blob, passphrase))
 
         for file, blob, passphrase in files_to_decrypt:
@@ -206,26 +211,18 @@ class GPM:
         self._all_files = get_all_files(
             self._working_dir, [self._metadata_dir])
 
-    def _decrypt_file(self, src: Path, dst: Path, passphrase: str = None):
-        if not passphrase:
-            passphrase = self._pswd
-        if not passphrase:
-            raise RuntimeError('No passphrase specified.')
+    def _decrypt_file(self, src: Path, dst: Path, key: bytes = None):
+        if not key:
+            key = self._crypto_key
         dst.parent.mkdir(exist_ok=True)
-        with open(src, 'rb') as fe:
-            self._gpg.decrypt_file(
-                fe, passphrase=passphrase, output=str(dst))
+        Crypto(key).decrypt(src, dst)
 
-    def _encrypt_file(self, src: Path, dst: Path, passphrase: str = None):
-        if not passphrase:
-            passphrase = self._pswd
-        if not passphrase:
-            raise RuntimeError('No passphrase specified.')
-        with open(src, 'rb') as f:
-            self._gpg.encrypt_file(
-                f, None, symmetric=True, passphrase=passphrase, output=str(dst))
+    def _encrypt_file(self, src: Path, dst: Path, key: bytes = None):
+        if not key:
+            key = self._crypto_key
+        Crypto(key).encrypt(src, dst)
 
-    def _add(self, file: Path, file_checksum: str) -> Tuple[Path, Path, str]:
+    def _add(self, file: Path, file_checksum: str) -> Tuple[Path, Path, bytes]:
         """
         Raises
         ------
@@ -235,9 +232,9 @@ class GPM:
         """
         key = self._key(file)
         file_uuid = self._uuid()
-        file_passphrase = file_checksum
+        file_passphrase = Crypto.generate_key()
         self._metadata[key] = {
-            'uuid': file_uuid, 'checksum': file_checksum, 'passphrase': file_passphrase}
+            'uuid': file_uuid, 'checksum': file_checksum, 'passphrase': file_passphrase.decode() }
         self._metadata_dirty = True
         logging.info(f'Commit new file "{key}" as "{file_uuid}"')
 
@@ -276,7 +273,7 @@ class GPM:
         file_uuid = self._metadata[key]['uuid']
         return (self._output_dir / file_uuid).with_suffix('.gpg')
 
-    def _update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path, str]:
+    def _update_checksum(self, file: Path, file_checksum: str) -> Tuple[Path, Path, bytes]:
         """
         Raises
         ------
@@ -286,9 +283,9 @@ class GPM:
         key = self._key(file)
         file_uuid = self._metadata[key]['uuid']
         old_checksum = self._metadata[key]['checksum']
-        file_passphrase = file_checksum
+        file_passphrase = Crypto.generate_key()
         self._metadata[key]['checksum'] = file_checksum
-        self._metadata[key]['passphrase'] = file_passphrase
+        self._metadata[key]['passphrase'] = file_passphrase.decode()
         self._metadata_dirty = True
         logging.info(f'Commit modified file "{key}" as "{file_uuid}": prev checksum="{old_checksum}", new checksum="{file_checksum}"')
         return file, self._blob(key), file_passphrase
@@ -328,6 +325,16 @@ class GPM:
                 return file_uuid
         logging.debug('[CRITICAL] Failed to generate UUID')
         raise RuntimeError('Failed to generate UUID')
+
+    def _safe_key(self, key : str) -> bytes:
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=key.encode(),
+            iterations=100000,
+            backend=default_backend()
+        )
+        return base64.urlsafe_b64encode(kdf.derive(key.encode()))
 
 
 # TODO Use descriptive sometype instead 'str'

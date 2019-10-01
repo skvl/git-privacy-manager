@@ -30,11 +30,6 @@ Roadmap
 * v1.1.0 - peer-to-peer synchronization
 * v1.2.0 - pluggable architecture
 
-Dependencies
-------------
-
-* `GnuPG <https://gnupg.org/>`_
-
 Building
 --------
 
