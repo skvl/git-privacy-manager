@@ -53,7 +53,7 @@ class TestSingleFileCRUD(unittest.TestCase):
         self.gpm.decrypt()
 
         self.assertTrue(os.path.isfile(self.file_path))
-        with open(self.file_path, 'r') as f:
+        with open(self.file_path, 'rb') as f:
             self.assertEqual(self.file_data, f.read())
 
     def test_update_single_file(self):
@@ -104,11 +104,11 @@ class TestMultipleFilesCRUD(unittest.TestCase):
         self.gpm.decrypt()
 
         self.assertTrue(os.path.isfile(self.file_1_path))
-        with open(self.file_1_path, 'r') as f:
+        with open(self.file_1_path, 'rb') as f:
             self.assertEqual(self.file_1_data, f.read())
 
         self.assertTrue(os.path.isfile(self.file_2_path))
-        with open(self.file_2_path, 'r') as f:
+        with open(self.file_2_path, 'rb') as f:
             self.assertEqual(self.file_2_data, f.read())
 
     def test_update_one_of_many_files(self):
@@ -121,11 +121,11 @@ class TestMultipleFilesCRUD(unittest.TestCase):
         self.gpm.decrypt()
 
         self.assertTrue(os.path.isfile(self.file_1_path))
-        with open(self.file_1_path, 'r') as f:
-            self.assertEqual(file_data_updated, f.read())
+        with open(self.file_1_path, 'rb') as f:
+            self.assertEqual(file_data_updated, f.read().decode())
 
         self.assertTrue(os.path.isfile(self.file_2_path))
-        with open(self.file_2_path, 'r') as f:
+        with open(self.file_2_path, 'rb') as f:
             self.assertEqual(self.file_2_data, f.read())
 
     def test_update_many_files(self):
@@ -156,7 +156,7 @@ class TestMultipleFilesCRUD(unittest.TestCase):
         self.assertFalse(os.path.exists(self.file_1_path))
 
         self.assertTrue(os.path.isfile(self.file_2_path))
-        with open(self.file_2_path, 'r') as f:
+        with open(self.file_2_path, 'rb') as f:
             self.assertEqual(self.file_2_data, f.read())
 
     @patch('git_privacy_manager.gpm.uuid4')

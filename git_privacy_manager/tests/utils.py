@@ -2,13 +2,12 @@ from pathlib import Path
 import shutil
 import tempfile
 from typing import List
-import uuid  # Used to generate random string
 
 
 def add_file(working_directory):
-    file_data = str(uuid.uuid4())
+    file_data = b'ax' * 4096 + b'bz'
     file_handle, file_path = tempfile.mkstemp(dir=working_directory, text=True)
-    with open(file_handle, 'w') as f:
+    with open(file_handle, 'wb') as f:
         f.write(file_data)
 
     return Path(file_path), file_data

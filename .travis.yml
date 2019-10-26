@@ -28,8 +28,6 @@ matrix:
       os: linux
       dist: xenial
       python: "3.7"
-      before_install:
-        - sudo apt-get install -y gnupg
       install:
         - python3 ./setup.py install
       script:
@@ -41,7 +39,6 @@ matrix:
       language: shell
       before_install:
         - choco install -y python --version 3.7.3
-        - choco install -y gpg4win-vanilla
         - python -m pip install --upgrade pip
       env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
       install:
@@ -54,10 +51,6 @@ matrix:
       os: osx
       osx_image: xcode10.2
       language: shell
-      addons:
-        homebrew:
-          packages:
-          - gnupg
       update: true
       install:
         - python3 ./setup.py install
