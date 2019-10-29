@@ -1,10 +1,8 @@
-import argparse
 import click
 from getpass import getpass
 from git_privacy_manager import GPM
 import os
 from pathlib import Path
-import sys
 
 
 @click.group()
