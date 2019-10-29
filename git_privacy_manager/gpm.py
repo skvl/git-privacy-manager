@@ -1,12 +1,11 @@
 import base64
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes, padding
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import hashlib
 import json
 import logging
 from pathlib import Path
-import struct
 from typing import Any, Dict, List, Tuple
 from uuid import uuid4
 
@@ -215,12 +214,12 @@ class GPM:
         if not key:
             key = self._crypto_key
         dst.parent.mkdir(exist_ok=True)
-        Crypto(key).decrypt(src, dst)
+        Crypto(key).decrypt_file(src, dst)
 
     def _encrypt_file(self, src: Path, dst: Path, key: bytes = None):
         if not key:
             key = self._crypto_key
-        Crypto(key).encrypt(src, dst)
+        Crypto(key).encrypt_file(src, dst)
 
     def _add(self, file: Path, file_checksum: str) -> Tuple[Path, Path, bytes]:
         """

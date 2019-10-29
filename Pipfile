@@ -9,6 +9,7 @@ sphinx = "*"
 mypy = "*"
 pylint = "*"
 rope = "*"
+autopep8 = "*"
 
 [packages]
 git-privacy-manager = {editable = true,path = "."}
