@@ -8,7 +8,6 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.hmac import HMAC
 import os
 from pathlib import Path
-import six
 import struct
 import time
 from typing import Iterator
@@ -22,13 +21,22 @@ _MAX_CLOCK_SKEW = 60
 
 
 class Crypto(object):
+    """
+    Stream version of Fernet.
+
+    The enrypted stream looks like:
+      magic + timestamp + nonce + ciphertext + HMAC signature
+    """
+
+    magic = b'\x8a'
+
     def __init__(self, key: bytes):
         backend = default_backend()
 
         key = base64.urlsafe_b64decode(key)
         if len(key) != 32:
             raise ValueError(
-                "Key must be 32 url-safe base64-encoded bytes."
+                'Key must be 32 url-safe base64-encoded bytes.'
             )
 
         self._signing_key = key[:16]
@@ -37,42 +45,42 @@ class Crypto(object):
 
     @classmethod
     def generate_key(cls) -> bytes:
-        key = base64.urlsafe_b64encode(os.urandom(32))
-        return key
+        return base64.urlsafe_b64encode(os.urandom(32))
 
     def encrypt_file(self, src: Path, dst: Path):
         with open(src, 'rb') as s, open(dst, 'wb') as d:
             ciphertext = self.encrypt_stream(iter(lambda: s.read(4096), b''))
             for data in ciphertext:
-                d.write(data)
+                if data:
+                    d.write(data)
 
     def encrypt_stream(self, src: Iterator[bytes]) -> Iterator[bytes]:
-        current_time = int(time.time())
         nonce = os.urandom(16)
         encryptor = Cipher(
             algorithms.AES(self._encryption_key), modes.CTR(
                 nonce), self._backend
         ).encryptor()
-
+        hmac = HMAC(self._signing_key, hashes.SHA256(), backend=self._backend)
+        # Format header
+        current_time = int(time.time())
         basic_parts = (
-            b"\x8a" + struct.pack(">Q", current_time) + nonce
+            self.magic + struct.pack('>Q', current_time) + nonce
         )
-        h = HMAC(self._signing_key, hashes.SHA256(), backend=self._backend)
-        h.update(basic_parts)
+        hmac.update(basic_parts) # The header is part of signature
         yield basic_parts
-        # Write padded chunks of data
+        # Encryption phase
         for data in src:
             ciphertext = encryptor.update(data)
-            h.update(ciphertext)
+            hmac.update(ciphertext)
             yield ciphertext
+        # Process last bytes if any
         fin = encryptor.finalize()
-        h.update(fin)
+        hmac.update(fin)
         yield fin
         # Write HMAC
-        hmac = h.finalize()
-        yield hmac
+        yield hmac.finalize()
 
-    def decrypt_file(self, src: Path, dst: Path, ttl=None):
+    def decrypt_file(self, src: Path, dst: Path, ttl: int = None):
         with open(src, 'rb') as s, open(dst, 'wb') as d:
             plaintext = self.decrypt_stream(
                 iter(lambda: s.read(4096), b''), ttl)
@@ -80,36 +88,28 @@ class Crypto(object):
                 if data:
                     d.write(data)
 
-    def decrypt_stream(self, src: Iterator[bytes], ttl=None) -> Iterator[bytes]:
-        def check_header(data: bytes):
-            # Check magic number
-            if six.indexbytes(buffer, 0) != 0x8a:
-                raise InvalidToken
-            # Check timestamp
-            if ttl is not None:
-                timestamp = self._get_timestamp(buffer[1:9])
-                current_time = int(time.time())
-                if timestamp + ttl < current_time:
-                    raise InvalidToken
-
-                if current_time + _MAX_CLOCK_SKEW < timestamp:
-                    raise InvalidToken
-
+    def decrypt_stream(self, src: Iterator[bytes], ttl: int = None) -> Iterator[bytes]:
+        # Use internal buffer as cache. This is needed because iterator could
+        # return too small chunks of data.
         buffer = b''
+        # Collect enougth bytes for header
         for data in src:
             buffer += data
             if len(buffer) < 25:
                 yield b''
-        check_header(buffer)
+        self._check_header(buffer, ttl)
         # Prepare HMAC checking
         hmac = HMAC(self._signing_key, hashes.SHA256(), backend=self._backend)
-        hmac.update(buffer[0:25])
         # Prepare decryptor
         decryptor = Cipher(
             algorithms.AES(self._encryption_key), modes.CTR(buffer[9:25]),
             self._backend).decryptor()
-        # Decrypt ciphertext
-        buffer = buffer[25:]
+        # Decryption phase
+        hmac.update(buffer[0:25])  # Header is under HMAC too
+        buffer = buffer[25:]      # Drop header. Leave body and HMAC.
+        # In cycle process previous block of data if current is large enougth
+        # to store HMAC. Otherwise append current block of data to buffer and
+        # wait for enother block of ciphertext.
         for data in src:
             if len(data) < 32:
                 buffer += data
@@ -117,7 +117,9 @@ class Crypto(object):
             hmac.update(buffer)
             yield decryptor.update(buffer)
             buffer = data
+        # At this point last 32 bytes should countain HMAC
         signature = buffer[-32:]
+        # And signature is not part of HMAC check
         buffer = buffer[:-32]
         hmac.update(buffer)
         try:
@@ -132,9 +134,26 @@ class Crypto(object):
             raise InvalidToken
 
     @staticmethod
-    def _get_timestamp(data: bytes):
+    def _get_timestamp(data: bytes) -> int:
         try:
-            timestamp, = struct.unpack(">Q", data[1:9])
+            timestamp, = struct.unpack('>Q', data[1:9])
         except struct.error:
             raise InvalidToken
         return timestamp
+
+    @classmethod
+    def _check_header(cls, buffer: bytes, ttl: int = None):
+        if len(buffer) < 9:
+            raise InvalidToken
+        # Check magic number
+        if buffer[0:1] != cls.magic:
+            raise InvalidToken
+        # Check timestamp
+        if ttl is not None:
+            timestamp = cls._get_timestamp(buffer[1:9])
+            current_time = int(time.time())
+            if timestamp + ttl < current_time:
+                raise InvalidToken
+
+            if current_time + _MAX_CLOCK_SKEW < timestamp:
+                raise InvalidToken
